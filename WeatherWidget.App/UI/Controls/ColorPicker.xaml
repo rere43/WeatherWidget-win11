@@ -1,0 +1,159 @@
+<UserControl x:Class="WeatherWidget.App.UI.Controls.ColorPicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:WeatherWidget.App.UI.Converters">
+    <UserControl.Resources>
+        <conv:ColorToBrushConverter x:Key="ColorToBrushConverter" />
+        <Style x:Key="ColorButton" TargetType="Button">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1" CornerRadius="4">
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <ToggleButton x:Name="ToggleBtn" Cursor="Hand">
+            <ToggleButton.Template>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Bd" Width="28" Height="24" CornerRadius="6"
+                            BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1"
+                            Background="{Binding SelectedColor, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource ColorToBrushConverter}}">
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </ToggleButton.Template>
+        </ToggleButton>
+        <Popup IsOpen="{Binding IsChecked, ElementName=ToggleBtn}" StaysOpen="False"
+               Placement="Bottom" AllowsTransparency="True">
+            <Border Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="8" Margin="0,2,0,0">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="2" Opacity="0.2" />
+                </Border.Effect>
+                <StackPanel>
+                    <WrapPanel Width="200">
+                        <!-- 基础色 -->
+                        <Button Background="#FFFFFFFF" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFFFFF" />
+                        <Button Background="#FFF5F5F5" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF5F5F5" />
+                        <Button Background="#FFE0E0E0" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE0E0E0" />
+                        <Button Background="#FFC0C0C0" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFC0C0C0" />
+                        <Button Background="#FFA0A0A0" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFA0A0A0" />
+                        <Button Background="#FF808080" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF808080" />
+                        <Button Background="#FF606060" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF606060" />
+                        <Button Background="#FF404040" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF404040" />
+                        <Button Background="#FF202020" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF202020" />
+                        <Button Background="#FF000000" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF000000" />
+                        <!-- 红色系 -->
+                        <Button Background="#FFFFEBEE" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFEBEE" />
+                        <Button Background="#FFFFCDD2" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFCDD2" />
+                        <Button Background="#FFEF9A9A" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFEF9A9A" />
+                        <Button Background="#FFE57373" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE57373" />
+                        <Button Background="#FFEF5350" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFEF5350" />
+                        <Button Background="#FFF44336" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF44336" />
+                        <Button Background="#FFE53935" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE53935" />
+                        <Button Background="#FFD32F2F" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFD32F2F" />
+                        <Button Background="#FFC62828" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFC62828" />
+                        <Button Background="#FFB71C1C" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFB71C1C" />
+                        <!-- 橙色系 -->
+                        <Button Background="#FFFFF3E0" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFF3E0" />
+                        <Button Background="#FFFFE0B2" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFE0B2" />
+                        <Button Background="#FFFFCC80" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFCC80" />
+                        <Button Background="#FFFFB74D" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFB74D" />
+                        <Button Background="#FFFFA726" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFA726" />
+                        <Button Background="#FFFF9800" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFF9800" />
+                        <Button Background="#FFFB8C00" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFB8C00" />
+                        <Button Background="#FFF57C00" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF57C00" />
+                        <Button Background="#FFEF6C00" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFEF6C00" />
+                        <Button Background="#FFE65100" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE65100" />
+                        <!-- 黄色系 -->
+                        <Button Background="#FFFFFDE7" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFFDE7" />
+                        <Button Background="#FFFFF9C4" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFF9C4" />
+                        <Button Background="#FFFFF59D" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFF59D" />
+                        <Button Background="#FFFFF176" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFF176" />
+                        <Button Background="#FFFFEE58" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFEE58" />
+                        <Button Background="#FFFFEB3B" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFFEB3B" />
+                        <Button Background="#FFFDD835" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFDD835" />
+                        <Button Background="#FFFBC02D" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFBC02D" />
+                        <Button Background="#FFF9A825" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF9A825" />
+                        <Button Background="#FFF57F17" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF57F17" />
+                        <!-- 绿色系 -->
+                        <Button Background="#FFE8F5E9" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE8F5E9" />
+                        <Button Background="#FFC8E6C9" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFC8E6C9" />
+                        <Button Background="#FFA5D6A7" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFA5D6A7" />
+                        <Button Background="#FF81C784" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF81C784" />
+                        <Button Background="#FF66BB6A" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF66BB6A" />
+                        <Button Background="#FF4CAF50" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF4CAF50" />
+                        <Button Background="#FF43A047" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF43A047" />
+                        <Button Background="#FF388E3C" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF388E3C" />
+                        <Button Background="#FF2E7D32" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF2E7D32" />
+                        <Button Background="#FF1B5E20" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF1B5E20" />
+                        <!-- 青色系 -->
+                        <Button Background="#FFE0F7FA" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE0F7FA" />
+                        <Button Background="#FFB2EBF2" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFB2EBF2" />
+                        <Button Background="#FF80DEEA" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF80DEEA" />
+                        <Button Background="#FF4DD0E1" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF4DD0E1" />
+                        <Button Background="#FF26C6DA" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF26C6DA" />
+                        <Button Background="#FF00BCD4" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF00BCD4" />
+                        <Button Background="#FF00ACC1" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF00ACC1" />
+                        <Button Background="#FF0097A7" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF0097A7" />
+                        <Button Background="#FF00838F" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF00838F" />
+                        <Button Background="#FF006064" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF006064" />
+                        <!-- 蓝色系 -->
+                        <Button Background="#FFE3F2FD" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE3F2FD" />
+                        <Button Background="#FFBBDEFB" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFBBDEFB" />
+                        <Button Background="#FF90CAF9" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF90CAF9" />
+                        <Button Background="#FF64B5F6" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF64B5F6" />
+                        <Button Background="#FF42A5F5" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF42A5F5" />
+                        <Button Background="#FF2196F3" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF2196F3" />
+                        <Button Background="#FF1E88E5" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF1E88E5" />
+                        <Button Background="#FF1976D2" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF1976D2" />
+                        <Button Background="#FF1565C0" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF1565C0" />
+                        <Button Background="#FF0D47A1" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF0D47A1" />
+                        <!-- 紫色系 -->
+                        <Button Background="#FFF3E5F5" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF3E5F5" />
+                        <Button Background="#FFE1BEE7" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE1BEE7" />
+                        <Button Background="#FFCE93D8" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFCE93D8" />
+                        <Button Background="#FFBA68C8" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFBA68C8" />
+                        <Button Background="#FFAB47BC" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFAB47BC" />
+                        <Button Background="#FF9C27B0" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF9C27B0" />
+                        <Button Background="#FF8E24AA" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF8E24AA" />
+                        <Button Background="#FF7B1FA2" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF7B1FA2" />
+                        <Button Background="#FF6A1B9A" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF6A1B9A" />
+                        <Button Background="#FF4A148C" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF4A148C" />
+                        <!-- 粉色系 -->
+                        <Button Background="#FFFCE4EC" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFFCE4EC" />
+                        <Button Background="#FFF8BBD9" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF8BBD9" />
+                        <Button Background="#FFF48FB1" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF48FB1" />
+                        <Button Background="#FFF06292" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFF06292" />
+                        <Button Background="#FFEC407A" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFEC407A" />
+                        <Button Background="#FFE91E63" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFE91E63" />
+                        <Button Background="#FFD81B60" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFD81B60" />
+                        <Button Background="#FFC2185B" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFC2185B" />
+                        <Button Background="#FFAD1457" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FFAD1457" />
+                        <Button Background="#FF880E4F" Style="{StaticResource ColorButton}" Click="OnColorClick" Tag="#FF880E4F" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

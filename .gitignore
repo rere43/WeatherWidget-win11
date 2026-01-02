@@ -1,0 +1,23 @@
+# Build outputs
+**/bin/
+**/obj/
+/artifacts/
+
+# Visual Studio
+/.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# JetBrains / IDE
+/.idea/
+/.claude/
+
+# Windows
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# Local reference downloads (not required to build)
+/WeatherWidget.App/参考/

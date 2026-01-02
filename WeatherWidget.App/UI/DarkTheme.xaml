@@ -1,0 +1,27 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- 夜间主题 (深色) -->
+    <Color x:Key="InkColor">#FFE8EDF5</Color>
+    <Color x:Key="SubtleInkColor">#FF9EAAB8</Color>
+    <Color x:Key="CardBgColor">#FF1E2836</Color>
+    <Color x:Key="CardBorderColor">#FF2D3A4D</Color>
+    <Color x:Key="SoftPanelColor">#FF263342</Color>
+    <Color x:Key="IconChipColor">#FF2A3A4E</Color>
+    <Color x:Key="HoverBgColor">#FF344559</Color>
+    <Color x:Key="ControlBgColor">#FF2A3745</Color>
+    <Color x:Key="ControlBorderColor">#FF3D4F63</Color>
+    <Color x:Key="AccentColor">#FF60A5FA</Color>
+    <Color x:Key="CheckMarkColor">#FF1E2836</Color>
+
+    <SolidColorBrush x:Key="InkBrush" Color="{StaticResource InkColor}" />
+    <SolidColorBrush x:Key="SubtleInkBrush" Color="{StaticResource SubtleInkColor}" />
+    <SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource CardBgColor}" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource CardBorderColor}" />
+    <SolidColorBrush x:Key="SoftPanelBrush" Color="{StaticResource SoftPanelColor}" />
+    <SolidColorBrush x:Key="IconChipBrush" Color="{StaticResource IconChipColor}" />
+    <SolidColorBrush x:Key="HoverBackgroundBrush" Color="{StaticResource HoverBgColor}" />
+    <SolidColorBrush x:Key="ControlBackgroundBrush" Color="{StaticResource ControlBgColor}" />
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="{StaticResource ControlBorderColor}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="CheckMarkBrush" Color="{StaticResource CheckMarkColor}" />
+</ResourceDictionary>

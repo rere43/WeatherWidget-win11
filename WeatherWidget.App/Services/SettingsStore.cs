@@ -1,0 +1,126 @@
+using System.IO;
+using System.Text.Json;
+using WeatherWidget.App.Models;
+
+namespace WeatherWidget.App.Services;
+
+public sealed class SettingsStore
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+    };
+
+    private readonly string _path;
+
+    public SettingsStore(string path)
+    {
+        _path = path;
+    }
+
+    public Settings LoadOrCreateDefault()
+    {
+        if (!File.Exists(_path))
+        {
+            Save(Settings.Default);
+            return Settings.Default;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(_path);
+            var settings = JsonSerializer.Deserialize<Settings>(json, JsonOptions) ?? Settings.Default;
+            var normalized = Normalize(settings);
+            if (normalized != settings)
+            {
+                Save(normalized);
+            }
+
+            return normalized;
+        }
+        catch
+        {
+            Save(Settings.Default);
+            return Settings.Default;
+        }
+    }
+
+    public void Save(Settings settings)
+    {
+        settings = Normalize(settings);
+        var json = JsonSerializer.Serialize(settings, JsonOptions);
+        File.WriteAllText(_path, json);
+    }
+
+    private static Settings Normalize(Settings settings)
+    {
+        var def = Settings.Default;
+
+        var city = string.IsNullOrWhiteSpace(settings.City) ? def.City : settings.City.Trim();
+        var refresh = settings.RefreshInterval <= TimeSpan.Zero ? def.RefreshInterval : settings.RefreshInterval;
+
+        var tempOffsetX = double.IsFinite(settings.TempBadgeOffsetX) ? settings.TempBadgeOffsetX : def.TempBadgeOffsetX;
+        var tempOffsetY = double.IsFinite(settings.TempBadgeOffsetY) ? settings.TempBadgeOffsetY : def.TempBadgeOffsetY;
+        var cornerOffsetX = double.IsFinite(settings.CornerBadgeOffsetX) ? settings.CornerBadgeOffsetX : def.CornerBadgeOffsetX;
+        var cornerOffsetY = double.IsFinite(settings.CornerBadgeOffsetY) ? settings.CornerBadgeOffsetY : def.CornerBadgeOffsetY;
+        var extraOffsetX = double.IsFinite(settings.ExtraBadgeOffsetX) ? settings.ExtraBadgeOffsetX : def.ExtraBadgeOffsetX;
+        var extraOffsetY = double.IsFinite(settings.ExtraBadgeOffsetY) ? settings.ExtraBadgeOffsetY : def.ExtraBadgeOffsetY;
+
+        var tempScale = double.IsFinite(settings.TempBadgeFontScale) && settings.TempBadgeFontScale > 0
+            ? Math.Clamp(settings.TempBadgeFontScale, 0.5, 3.0)
+            : def.TempBadgeFontScale;
+
+        var cornerScale = double.IsFinite(settings.CornerBadgeFontScale) && settings.CornerBadgeFontScale > 0
+            ? Math.Clamp(settings.CornerBadgeFontScale, 0.5, 3.0)
+            : def.CornerBadgeFontScale;
+
+        var extraScale = double.IsFinite(settings.ExtraBadgeFontScale) && settings.ExtraBadgeFontScale > 0
+            ? Math.Clamp(settings.ExtraBadgeFontScale, 0.5, 3.0)
+            : def.ExtraBadgeFontScale;
+
+        var tempFormat = string.IsNullOrWhiteSpace(settings.TempBadgeFormat) ? def.TempBadgeFormat : settings.TempBadgeFormat.Trim();
+        var uvFormat = string.IsNullOrWhiteSpace(settings.CornerUvFormat) ? def.CornerUvFormat : settings.CornerUvFormat.Trim();
+        var rhFormat = string.IsNullOrWhiteSpace(settings.CornerHumidityFormat) ? def.CornerHumidityFormat : settings.CornerHumidityFormat.Trim();
+        var extraFormat = string.IsNullOrWhiteSpace(settings.ExtraBadgeFormat) ? def.ExtraBadgeFormat : settings.ExtraBadgeFormat.Trim();
+
+        var lat = double.IsFinite(settings.Latitude) ? settings.Latitude : def.Latitude;
+        var lon = double.IsFinite(settings.Longitude) ? settings.Longitude : def.Longitude;
+
+        return settings with
+        {
+            City = city,
+            Latitude = lat,
+            Longitude = lon,
+            RefreshInterval = refresh,
+            TempBadgeOffsetX = tempOffsetX,
+            TempBadgeOffsetY = tempOffsetY,
+            TempBadgeFontScale = tempScale,
+            TempBadgeFormat = tempFormat,
+            CornerBadgeOffsetX = cornerOffsetX,
+            CornerBadgeOffsetY = cornerOffsetY,
+            CornerBadgeFontScale = cornerScale,
+            CornerUvFormat = uvFormat,
+            CornerHumidityFormat = rhFormat,
+            ExtraBadgeEnabled = settings.ExtraBadgeEnabled,
+            ExtraBadgeOffsetX = extraOffsetX,
+            ExtraBadgeOffsetY = extraOffsetY,
+            ExtraBadgeFontScale = extraScale,
+            ExtraBadgeFormat = extraFormat,
+            ThemeMode = settings.ThemeMode,
+            AutoStart = settings.AutoStart,
+            StartHidden = settings.StartHidden,
+            BadgeBackgroundEnabled = settings.BadgeBackgroundEnabled,
+            BadgeStrokeWidth = settings.BadgeStrokeWidth,
+            IconBackgroundEnabled = settings.IconBackgroundEnabled,
+            IconOffsetX = settings.IconOffsetX,
+            IconOffsetY = settings.IconOffsetY,
+            TempBadgePosition = settings.TempBadgePosition,
+            CornerBadgePosition = settings.CornerBadgePosition,
+            ExtraBadgePosition = settings.ExtraBadgePosition,
+            BadgeFontFamily = settings.BadgeFontFamily,
+            TempBadgeColor = settings.TempBadgeColor,
+            CornerBadgeColor = settings.CornerBadgeColor,
+            ExtraBadgeColor = settings.ExtraBadgeColor,
+        };
+    }
+}
