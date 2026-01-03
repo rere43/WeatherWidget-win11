@@ -10,6 +10,13 @@ public sealed class IconRenderer
 {
     private readonly WeatherArtProvider _artProvider;
 
+    private static void ConfigureVisualQuality(Visual visual)
+    {
+        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+        TextOptions.SetTextFormattingMode(visual, TextFormattingMode.Display);
+        TextOptions.SetTextRenderingMode(visual, TextRenderingMode.Grayscale);
+    }
+
     public IconRenderer(WeatherArtProvider artProvider)
     {
         _artProvider = artProvider;
@@ -25,6 +32,7 @@ public sealed class IconRenderer
         var fontFamily = GetFontFamily(settings.BadgeFontFamily);
 
         var visual = new DrawingVisual();
+        ConfigureVisualQuality(visual);
         using (var ctx = visual.RenderOpen())
         {
             if (settings.IconBackgroundEnabled)
@@ -124,6 +132,7 @@ public sealed class IconRenderer
         var baseArt = _artProvider.RenderBaseArt(now.WeatherCode, size);
 
         var visual = new DrawingVisual();
+        ConfigureVisualQuality(visual);
         using (var ctx = visual.RenderOpen())
         {
             if (settings.IconBackgroundEnabled)
@@ -155,6 +164,7 @@ public sealed class IconRenderer
 
         var fontFamily = GetFontFamily(settings.BadgeFontFamily);
         var visual = new DrawingVisual();
+        ConfigureVisualQuality(visual);
 
         using (var ctx = visual.RenderOpen())
         {
@@ -239,6 +249,7 @@ public sealed class IconRenderer
         const int width = 320;
         const int height = 240;
         var visual = new DrawingVisual();
+        ConfigureVisualQuality(visual);
         var now = snapshot.Now;
 
         using (var ctx = visual.RenderOpen())

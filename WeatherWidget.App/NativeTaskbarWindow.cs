@@ -398,9 +398,10 @@ public sealed class NativeTaskbarWindow : IDisposable
         var cornerFontSize = baseFontSize * Math.Clamp(settings.CornerBadgeFontScale, 0.5, 3.0);
         var extraFontSize = baseFontSize * Math.Clamp(settings.ExtraBadgeFontScale, 0.5, 3.0);
 
-        var tempWidth = MeasureTextWidth(_contentTempText, typeface, tempFontSize);
-        var cornerWidth = string.IsNullOrWhiteSpace(_contentCornerText) ? 0 : MeasureTextWidth(_contentCornerText!, typeface, cornerFontSize);
-        var extraWidth = string.IsNullOrWhiteSpace(_contentExtraText) ? 0 : MeasureTextWidth(_contentExtraText!, typeface, extraFontSize);
+        var pixelsPerDip = GetPixelsPerDip();
+        var tempWidth = MeasureTextWidth(_contentTempText, typeface, tempFontSize, pixelsPerDip);
+        var cornerWidth = string.IsNullOrWhiteSpace(_contentCornerText) ? 0 : MeasureTextWidth(_contentCornerText!, typeface, cornerFontSize, pixelsPerDip);
+        var extraWidth = string.IsNullOrWhiteSpace(_contentExtraText) ? 0 : MeasureTextWidth(_contentExtraText!, typeface, extraFontSize, pixelsPerDip);
 
         const int paddingLeft = 4;
         const int paddingRight = 4;
@@ -603,6 +604,7 @@ public sealed class NativeTaskbarWindow : IDisposable
     private ImageSource RenderContent(WeatherNow now, Settings settings)
     {
         var visual = new DrawingVisual();
+        ConfigureVisualQuality(visual);
         using (var ctx = visual.RenderOpen())
         {
             // 透明背景：不绘制底色（AlphaBlend 会保留任务栏背景）
@@ -616,28 +618,57 @@ public sealed class NativeTaskbarWindow : IDisposable
                 ctx.DrawImage(icon, new Rect(4, iconY, iconSize, iconSize));
             }
 
-            // 文本（复用三组角标配置：字号/颜色/间隔/格式）
+            // 文本（复用三组角标配置：字号/颜色/间隔/格式），统一基线对齐
+            var pixelsPerDip = GetPixelsPerDip();
             var fontFamily = new FontFamily(string.IsNullOrWhiteSpace(settings.BadgeFontFamily) ? "Segoe UI" : settings.BadgeFontFamily);
             var typeface = new Typeface(fontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
             var baseFontSize = _height * 0.45;
 
-            var x = 4 + iconSize;
+            FormattedText? tempText = null;
+            FormattedText? cornerText = null;
+            FormattedText? extraText = null;
+
+            var segments = new List<FormattedText>(capacity: 3);
+
             if (!string.IsNullOrWhiteSpace(_contentTempText))
             {
-                x += _contentGapAfterIcon;
-                x = DrawInlineText(ctx, _contentTempText, typeface, baseFontSize * settings.TempBadgeFontScale, ParseColor(settings.TempBadgeColor), x);
+                tempText = CreateFormattedText(_contentTempText, typeface, baseFontSize * settings.TempBadgeFontScale, ParseColor(settings.TempBadgeColor), pixelsPerDip);
+                segments.Add(tempText);
             }
 
             if (!string.IsNullOrWhiteSpace(_contentCornerText))
             {
-                x += _contentGapAfterTemp;
-                x = DrawInlineText(ctx, _contentCornerText!, typeface, baseFontSize * settings.CornerBadgeFontScale, ParseColor(settings.CornerBadgeColor), x);
+                cornerText = CreateFormattedText(_contentCornerText!, typeface, baseFontSize * settings.CornerBadgeFontScale, ParseColor(settings.CornerBadgeColor), pixelsPerDip);
+                segments.Add(cornerText);
             }
 
             if (!string.IsNullOrWhiteSpace(_contentExtraText))
             {
+                extraText = CreateFormattedText(_contentExtraText!, typeface, baseFontSize * settings.ExtraBadgeFontScale, ParseColor(settings.ExtraBadgeColor), pixelsPerDip);
+                segments.Add(extraText);
+            }
+
+            var baselineY = GetBaselineY(_height, segments);
+
+            var x = 4 + iconSize;
+            if (tempText is not null)
+            {
+                x += _contentGapAfterIcon;
+                DrawTextOnBaseline(ctx, tempText, x, baselineY);
+                x = AdvanceX(tempText, x);
+            }
+
+            if (cornerText is not null)
+            {
+                x += _contentGapAfterTemp;
+                DrawTextOnBaseline(ctx, cornerText, x, baselineY);
+                x = AdvanceX(cornerText, x);
+            }
+
+            if (extraText is not null)
+            {
                 x += _contentGapAfterCorner;
-                _ = DrawInlineText(ctx, _contentExtraText!, typeface, baseFontSize * settings.ExtraBadgeFontScale, ParseColor(settings.ExtraBadgeColor), x);
+                DrawTextOnBaseline(ctx, extraText, x, baselineY);
             }
         }
 
@@ -647,26 +678,31 @@ public sealed class NativeTaskbarWindow : IDisposable
         return bmp;
     }
 
-    private static double MeasureTextWidth(string text, Typeface typeface, double fontSize)
+    private static double GetPixelsPerDip()
+    {
+        try
+        {
+            var mainWindow = Application.Current?.MainWindow;
+            if (mainWindow is not null)
+            {
+                return VisualTreeHelper.GetDpi(mainWindow).PixelsPerDip;
+            }
+        }
+        catch
+        {
+            // ignored
+        }
+
+        return 1.0;
+    }
+
+    private static double MeasureTextWidth(string text, Typeface typeface, double fontSize, double pixelsPerDip)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
             return 0;
         }
 
-        var formatted = new FormattedText(
-            text,
-            System.Globalization.CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight,
-            typeface,
-            fontSize,
-            Brushes.White,
-            1.0);
-        return formatted.WidthIncludingTrailingWhitespace;
-    }
-
-    private int DrawInlineText(DrawingContext ctx, string text, Typeface typeface, double fontSize, Color color, int x)
-    {
         fontSize = Math.Max(6, fontSize);
         var formatted = new FormattedText(
             text,
@@ -674,13 +710,84 @@ public sealed class NativeTaskbarWindow : IDisposable
             FlowDirection.LeftToRight,
             typeface,
             fontSize,
+            Brushes.White,
+            pixelsPerDip);
+
+        return formatted.WidthIncludingTrailingWhitespace;
+    }
+
+    private static FormattedText CreateFormattedText(string text, Typeface typeface, double fontSize, Color color, double pixelsPerDip)
+    {
+        fontSize = Math.Max(6, fontSize);
+        return new FormattedText(
+            text,
+            System.Globalization.CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
             new SolidColorBrush(color),
-            1.0);
+            pixelsPerDip);
+    }
+
+    private static int AdvanceX(FormattedText formatted, int x)
+    {
+        return x + (int)Math.Ceiling(formatted.WidthIncludingTrailingWhitespace);
+    }
+
+    private static double GetLineAscent(IReadOnlyList<FormattedText> segments)
+    {
+        var ascent = 0.0;
+        foreach (var s in segments)
+        {
+            ascent = Math.Max(ascent, s.Baseline);
+        }
+        return ascent;
+    }
+
+    private static double GetLineDescent(IReadOnlyList<FormattedText> segments)
+    {
+        var descent = 0.0;
+        foreach (var s in segments)
+        {
+            descent = Math.Max(descent, s.Height - s.Baseline);
+        }
+        return descent;
+    }
+
+    private static double GetBaselineY(int height, IReadOnlyList<FormattedText> segments)
+    {
+        if (segments.Count == 0)
+        {
+            return height / 2.0;
+        }
+
+        var ascent = GetLineAscent(segments);
+        var descent = GetLineDescent(segments);
+        var lineHeight = ascent + descent;
+        return (height - lineHeight) / 2 + ascent;
+    }
+
+    private static void DrawTextOnBaseline(DrawingContext ctx, FormattedText formatted, int x, double baselineY)
+    {
+        var topY = baselineY - formatted.Baseline;
+        ctx.DrawText(formatted, new Point(x, topY));
+    }
+
+    private static void ConfigureVisualQuality(Visual visual)
+    {
+        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+        TextOptions.SetTextFormattingMode(visual, TextFormattingMode.Display);
+        TextOptions.SetTextRenderingMode(visual, TextRenderingMode.Grayscale);
+    }
+
+    private int DrawInlineText(DrawingContext ctx, string text, Typeface typeface, double fontSize, Color color, int x)
+    {
+        var formatted = CreateFormattedText(text, typeface, fontSize, color, GetPixelsPerDip());
 
         // 垂直居中
         var textY = (_height - formatted.Height) / 2;
         ctx.DrawText(formatted, new Point(x, textY));
-        return x + (int)Math.Ceiling(formatted.WidthIncludingTrailingWhitespace);
+        return AdvanceX(formatted, x);
     }
 
     private static string ApplyTemplate(string template, string value, string fallbackTemplate)

@@ -236,17 +236,11 @@ public sealed class WeatherIconMapper
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
             bmp.UriSource = new Uri(iconPath);
+            bmp.DecodePixelWidth = size;
+            bmp.DecodePixelHeight = size;
             bmp.EndInit();
             bmp.Freeze();
-
-            if (bmp.PixelWidth == size && bmp.PixelHeight == size)
-            {
-                return bmp;
-            }
-
-            var scaled = new TransformedBitmap(bmp, new ScaleTransform((double)size / bmp.PixelWidth, (double)size / bmp.PixelHeight));
-            scaled.Freeze();
-            return scaled;
+            return bmp;
         }
         catch
         {
