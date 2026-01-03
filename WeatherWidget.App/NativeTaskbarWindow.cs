@@ -27,9 +27,6 @@ public sealed class NativeTaskbarWindow : IDisposable
     private static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool IsWindowVisible(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -77,18 +74,6 @@ public sealed class NativeTaskbarWindow : IDisposable
         ref BLENDFUNCTION pblend,
         uint dwFlags);
 
-    [DllImport("user32.dll", SetLastError = true, EntryPoint = "UpdateLayeredWindow")]
-    private static extern bool UpdateLayeredWindowOptional(
-        IntPtr hwnd,
-        IntPtr hdcDst,
-        IntPtr pptDst,
-        IntPtr psize,
-        IntPtr hdcSrc,
-        ref POINT pptSrc,
-        int crKey,
-        ref BLENDFUNCTION pblend,
-        uint dwFlags);
-
     [DllImport("user32.dll")]
     private static extern IntPtr GetDC(IntPtr hWnd);
 
@@ -121,9 +106,6 @@ public sealed class NativeTaskbarWindow : IDisposable
 
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetModuleHandle(string? lpModuleName);
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -219,20 +201,20 @@ public sealed class NativeTaskbarWindow : IDisposable
     }
 
     private const uint WS_CHILD = 0x40000000;
+    private const uint WS_POPUP = 0x80000000;
     private const uint WS_VISIBLE = 0x10000000;
     private const uint WS_CLIPSIBLINGS = 0x04000000;
     private const uint WS_EX_TOOLWINDOW = 0x00000080;
     private const uint WS_EX_NOACTIVATE = 0x08000000;
     private const uint WS_EX_TRANSPARENT = 0x00000020;
     private const uint WS_EX_LAYERED = 0x00080000;
+    private const uint WS_EX_TOPMOST = 0x00000008;
     private const uint WM_PAINT = 0x000F;
     private const uint WM_DESTROY = 0x0002;
     private const uint WM_ERASEBKGND = 0x0014;
     private const uint WM_NCHITTEST = 0x0084;
     private const uint WM_MOUSEACTIVATE = 0x0021;
-    private const uint WM_SHOWWINDOW = 0x0018;
     private const uint WM_WINDOWPOSCHANGING = 0x0046;
-    private const uint WM_WINDOWPOSCHANGED = 0x0047;
     private const uint WM_LBUTTONDOWN = 0x0201;
     private const uint WM_RBUTTONDOWN = 0x0204;
     private const uint WM_LBUTTONUP = 0x0202;
@@ -250,7 +232,7 @@ public sealed class NativeTaskbarWindow : IDisposable
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const uint SWP_HIDEWINDOW = 0x0080;
 
-    private const int DWMWA_CLOAKED = 14;
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
 
     #endregion
 
@@ -280,8 +262,6 @@ public sealed class NativeTaskbarWindow : IDisposable
     private int _contentGapAfterIcon = 8;
     private int _contentGapAfterTemp = 8;
     private int _contentGapAfterCorner = 8;
-    private bool? _traceLastVisible;
-    private int? _traceLastCloaked;
 
     public NativeTaskbarWindow(PanelViewModel panelViewModel, IconRenderer iconRenderer)
     {
@@ -345,10 +325,10 @@ public sealed class NativeTaskbarWindow : IDisposable
             AppLogger.Info($"NativeTaskbarWindow: Creating at x={x}, y={y}, size={_width}x{_height}");
 
             _hwnd = CreateWindowEx(
-                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
+                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_TOPMOST,
                 "WeatherWidgetTaskbar",
                 "WeatherWidget",
-                WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+                WS_POPUP | WS_VISIBLE,
                 x,
                 y,
                 _width,
@@ -367,7 +347,6 @@ public sealed class NativeTaskbarWindow : IDisposable
 
             _isEmbedded = true;
             AppLogger.Info($"NativeTaskbarWindow: Created hwnd=0x{_hwnd:X}");
-            TraceWindowState("created");
 
             UpdateTaskbarAnchors();
             AdjustPosition(forceAdjust: true);
@@ -400,7 +379,6 @@ public sealed class NativeTaskbarWindow : IDisposable
                     }
 
                     AdjustPosition(forceAdjust: false);
-                    TraceWindowState("positionTimer");
                 });
             }, null, 0, 1000);
 
@@ -604,37 +582,19 @@ public sealed class NativeTaskbarWindow : IDisposable
                 return;
             }
 
+            UpdateDesiredLayout(taskbarClientRect);
+
             if (!GetWindowRect(_taskbarHwnd, out var taskbarScreenRect))
             {
                 return;
             }
 
-            // Win11 某些设备/版本下 Shell_TrayWnd 的 client 高度会大于可见任务栏条带高度（例如触屏/无图标时）。
-            // 参考 TrafficMonitor：用 Start/TrayNotifyWnd 的矩形推算“真实条带”的 top/height，避免窗口跑到任务栏外面。
-            var bandTopY = 0;
-            var bandHeight = taskbarClientRect.Height;
-            if (_startButtonHwnd != IntPtr.Zero && GetWindowRect(_startButtonHwnd, out var startRect) && startRect.Height > 0)
+            // 高度尽量贴合任务栏高度（避免被裁剪）
+            var targetHeight = taskbarClientRect.Height;
+            if (targetHeight <= 0)
             {
-                bandTopY = Math.Max(0, startRect.Top - taskbarScreenRect.Top);
-                bandHeight = Math.Min(taskbarClientRect.Height, startRect.Height);
+                targetHeight = _height;
             }
-            else if (_trayNotifyHwnd != IntPtr.Zero && GetWindowRect(_trayNotifyHwnd, out var trayRect) && trayRect.Height > 0)
-            {
-                bandTopY = Math.Max(0, trayRect.Top - taskbarScreenRect.Top);
-                bandHeight = Math.Min(taskbarClientRect.Height, trayRect.Height);
-            }
-
-            if (bandHeight <= 0)
-            {
-                bandHeight = _height;
-            }
-
-            var layoutRect = taskbarClientRect;
-            layoutRect.Bottom = layoutRect.Top + bandHeight;
-            UpdateDesiredLayout(layoutRect);
-
-            // 高度贴合可见条带高度（避免被裁剪或跑出任务栏）
-            var targetHeight = bandHeight;
 
             // 计算通知区左边界（相对 taskbar client）
             var notifyLeftX = 0;
@@ -658,7 +618,7 @@ public sealed class NativeTaskbarWindow : IDisposable
                 targetX = marginPx;
             }
 
-            var targetY = bandTopY + (bandHeight - targetHeight) / 2;
+            var targetY = (taskbarClientRect.Height - targetHeight) / 2;
             if (targetY < 0)
             {
                 targetY = 0;
@@ -680,15 +640,8 @@ public sealed class NativeTaskbarWindow : IDisposable
             _lastHeight = targetHeight;
             _lastWidth = _width;
 
-            var flags = SWP_NOACTIVATE | SWP_SHOWWINDOW;
-            // 子窗口：坐标以父窗口 client 为基准；默认不频繁改 Z-order，避免抖动
-            var insertAfter = IntPtr.Zero; // HWND_TOP
-            if (!forceAdjust)
-            {
-                flags |= SWP_NOZORDER;
-            }
-
-            SetWindowPos(_hwnd, insertAfter, targetX, targetY, _width, targetHeight, flags);
+            SetWindowPos(_hwnd, HWND_TOPMOST, screenX, screenY, _width, targetHeight,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW);
 
             if (shouldUpdateVisual)
             {
@@ -705,10 +658,6 @@ public sealed class NativeTaskbarWindow : IDisposable
     {
         switch (msg)
         {
-            case WM_SHOWWINDOW:
-                TraceWindowState($"WM_SHOWWINDOW wParam={wParam}");
-                break;
-
             case WM_PAINT:
                 OnPaint(hWnd);
                 return IntPtr.Zero;
@@ -728,8 +677,8 @@ public sealed class NativeTaskbarWindow : IDisposable
                 return (IntPtr)MA_NOACTIVATE;
 
             case WM_WINDOWPOSCHANGING:
-                // 任务栏显示预览缩略图/切换窗口时，Explorer 可能会对嵌入窗口做隐藏或调整 Z-order，导致“闪一下/消失”。
-                // 这里尽量拦截隐藏，避免靠高频 SetWindowPos “保活”造成体验抖动。
+                // 任务栏显示预览缩略图/切换窗口时，Explorer 可能会对 owned window 做隐藏或调整 Z-order，导致“闪一下/消失”。
+                // 这里拦截并尽量保持可见 + 维持在非置顶窗口顶部，避免靠定时 SetWindowPos 保活造成体验抖动。
                 try
                 {
                     var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
@@ -743,14 +692,13 @@ public sealed class NativeTaskbarWindow : IDisposable
 
                     if ((pos.flags & SWP_NOZORDER) == 0 && pos.hwndInsertAfter != IntPtr.Zero)
                     {
-                        pos.hwndInsertAfter = IntPtr.Zero; // HWND_TOP
+                        pos.hwndInsertAfter = HWND_TOPMOST;
                         changed = true;
                     }
 
                     if (changed)
                     {
                         Marshal.StructureToPtr(pos, lParam, false);
-                        TraceWindowState("WM_WINDOWPOSCHANGING");
                     }
                 }
                 catch
@@ -758,10 +706,6 @@ public sealed class NativeTaskbarWindow : IDisposable
                     // ignored
                 }
 
-                break;
-
-            case WM_WINDOWPOSCHANGED:
-                TraceWindowState("WM_WINDOWPOSCHANGED");
                 break;
 
             case WM_LBUTTONDOWN:
@@ -776,6 +720,7 @@ public sealed class NativeTaskbarWindow : IDisposable
 
     private void OnPaint(IntPtr hWnd)
     {
+        AppLogger.Info("NativeTaskbarWindow: OnPaint called");
         BeginPaint(hWnd, out var ps);
         try
         {
@@ -1120,46 +1065,6 @@ public sealed class NativeTaskbarWindow : IDisposable
         }
     }
 
-    private void TraceWindowState(string reason)
-    {
-        if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd))
-        {
-            return;
-        }
-
-        var visible = false;
-        try
-        {
-            visible = IsWindowVisible(_hwnd);
-        }
-        catch
-        {
-            // ignore
-        }
-
-        var cloaked = -1;
-        try
-        {
-            if (DwmGetWindowAttribute(_hwnd, DWMWA_CLOAKED, out var v, sizeof(int)) == 0)
-            {
-                cloaked = v;
-            }
-        }
-        catch
-        {
-            // ignore
-        }
-
-        if (_traceLastVisible == visible && _traceLastCloaked == cloaked)
-        {
-            return;
-        }
-
-        _traceLastVisible = visible;
-        _traceLastCloaked = cloaked;
-        AppLogger.Info($"NativeTaskbarWindow: state changed ({reason}) visible={visible} cloaked=0x{cloaked:X}");
-    }
-
     private void DrawBitmapToHdc(IntPtr hdc, BitmapSource bmp, int x, int y)
     {
         // obsolete: moved to UpdateLayeredVisual()
@@ -1224,22 +1129,15 @@ public sealed class NativeTaskbarWindow : IDisposable
             }
         };
 
-        var hdcDstOwner = _hwnd;
-        var hdcDst = GetDC(_hwnd);
-        if (hdcDst == IntPtr.Zero)
-        {
-            hdcDstOwner = IntPtr.Zero;
-            hdcDst = GetDC(IntPtr.Zero);
-        }
-
-        if (hdcDst == IntPtr.Zero)
+        var hdcScreen = GetDC(IntPtr.Zero);
+        if (hdcScreen == IntPtr.Zero)
         {
             return;
         }
 
         try
         {
-            var hdcMem = CreateCompatibleDC(hdcDst);
+            var hdcMem = CreateCompatibleDC(hdcScreen);
             var hBitmap = CreateDIBSection(hdcMem, ref bmi, 0, out var bits, IntPtr.Zero, 0);
             if (hBitmap == IntPtr.Zero || bits == IntPtr.Zero)
             {
@@ -1253,6 +1151,8 @@ public sealed class NativeTaskbarWindow : IDisposable
                 var oldBmp = SelectObject(hdcMem, hBitmap);
                 try
                 {
+                    var ptDst = new POINT { x = _lastX == int.MinValue ? 0 : _lastX, y = _lastY == int.MinValue ? 0 : _lastY };
+                    var size = new SIZE { cx = width, cy = height };
                     var ptSrc = new POINT { x = 0, y = 0 };
                     var blend = new BLENDFUNCTION
                     {
@@ -1262,9 +1162,7 @@ public sealed class NativeTaskbarWindow : IDisposable
                         AlphaFormat = AC_SRC_ALPHA,
                     };
 
-                    // 子窗口模式下不要在 UpdateLayeredWindow 里“顺带移动窗口”，避免坐标体系差异导致窗口跑偏/不可见。
-                    // 位置与大小统一由 SetWindowPos/MoveWindow 负责（参考 TrafficMonitor 的调用方式：pptDst=nullptr）。
-                    if (!UpdateLayeredWindowOptional(_hwnd, hdcDst, IntPtr.Zero, IntPtr.Zero, hdcMem, ref ptSrc, 0, ref blend, ULW_ALPHA))
+                    if (!UpdateLayeredWindow(_hwnd, hdcScreen, ref ptDst, ref size, hdcMem, ref ptSrc, 0, ref blend, ULW_ALPHA))
                     {
                         var err = Marshal.GetLastWin32Error();
                         AppLogger.Info($"NativeTaskbarWindow: UpdateLayeredWindow failed, error={err}");
@@ -1283,7 +1181,7 @@ public sealed class NativeTaskbarWindow : IDisposable
         }
         finally
         {
-            ReleaseDC(hdcDstOwner, hdcDst);
+            ReleaseDC(IntPtr.Zero, hdcScreen);
         }
     }
 
