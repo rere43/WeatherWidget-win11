@@ -604,19 +604,37 @@ public sealed class NativeTaskbarWindow : IDisposable
                 return;
             }
 
-            UpdateDesiredLayout(taskbarClientRect);
-
             if (!GetWindowRect(_taskbarHwnd, out var taskbarScreenRect))
             {
                 return;
             }
 
-            // 高度尽量贴合任务栏高度（避免被裁剪）
-            var targetHeight = taskbarClientRect.Height;
-            if (targetHeight <= 0)
+            // Win11 某些设备/版本下 Shell_TrayWnd 的 client 高度会大于可见任务栏条带高度（例如触屏/无图标时）。
+            // 参考 TrafficMonitor：用 Start/TrayNotifyWnd 的矩形推算“真实条带”的 top/height，避免窗口跑到任务栏外面。
+            var bandTopY = 0;
+            var bandHeight = taskbarClientRect.Height;
+            if (_startButtonHwnd != IntPtr.Zero && GetWindowRect(_startButtonHwnd, out var startRect) && startRect.Height > 0)
             {
-                targetHeight = _height;
+                bandTopY = Math.Max(0, startRect.Top - taskbarScreenRect.Top);
+                bandHeight = Math.Min(taskbarClientRect.Height, startRect.Height);
             }
+            else if (_trayNotifyHwnd != IntPtr.Zero && GetWindowRect(_trayNotifyHwnd, out var trayRect) && trayRect.Height > 0)
+            {
+                bandTopY = Math.Max(0, trayRect.Top - taskbarScreenRect.Top);
+                bandHeight = Math.Min(taskbarClientRect.Height, trayRect.Height);
+            }
+
+            if (bandHeight <= 0)
+            {
+                bandHeight = _height;
+            }
+
+            var layoutRect = taskbarClientRect;
+            layoutRect.Bottom = layoutRect.Top + bandHeight;
+            UpdateDesiredLayout(layoutRect);
+
+            // 高度贴合可见条带高度（避免被裁剪或跑出任务栏）
+            var targetHeight = bandHeight;
 
             // 计算通知区左边界（相对 taskbar client）
             var notifyLeftX = 0;
@@ -640,7 +658,7 @@ public sealed class NativeTaskbarWindow : IDisposable
                 targetX = marginPx;
             }
 
-            var targetY = (taskbarClientRect.Height - targetHeight) / 2;
+            var targetY = bandTopY + (bandHeight - targetHeight) / 2;
             if (targetY < 0)
             {
                 targetY = 0;
