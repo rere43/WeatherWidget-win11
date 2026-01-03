@@ -72,6 +72,14 @@ public sealed class SettingsStore
             ? Math.Clamp(settings.EmbeddedOffsetX, -300, 300)
             : def.EmbeddedOffsetX;
 
+        var embeddedTextLayout = Enum.IsDefined(typeof(EmbeddedTextLayout), settings.EmbeddedTextLayout)
+            ? settings.EmbeddedTextLayout
+            : def.EmbeddedTextLayout;
+
+        var embeddedTextAlignment = Enum.IsDefined(typeof(EmbeddedTextAlignment), settings.EmbeddedTextAlignment)
+            ? settings.EmbeddedTextAlignment
+            : def.EmbeddedTextAlignment;
+
         var tempScale = double.IsFinite(settings.TempBadgeFontScale) && settings.TempBadgeFontScale > 0
             ? Math.Clamp(settings.TempBadgeFontScale, 0.5, 3.0)
             : def.TempBadgeFontScale;
@@ -129,6 +137,8 @@ public sealed class SettingsStore
             ExtraBadgeColor = settings.ExtraBadgeColor,
             EmbeddedIconScale = embeddedIconScale,
             EmbeddedOffsetX = embeddedOffsetX,
+            EmbeddedTextLayout = embeddedTextLayout,
+            EmbeddedTextAlignment = embeddedTextAlignment,
         };
     }
 }

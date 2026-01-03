@@ -49,6 +49,19 @@ public enum IconDisplayMode
     Embedded = 2,   // 嵌入任务栏：类似 TrafficMonitor 的方式
 }
 
+public enum EmbeddedTextLayout
+{
+    SingleLine = 0, // 一行显示：图标 + 温度/副角标/额外角标横向排布
+    ThreeLines = 1, // 三行显示：文字区按 3 行排列
+}
+
+public enum EmbeddedTextAlignment
+{
+    Left = 0,
+    Center = 1,
+    Right = 2,
+}
+
 public sealed record Settings(
     string City,
     double Latitude,
@@ -86,7 +99,9 @@ public sealed record Settings(
     bool AutoStart = false,
     bool StartHidden = false,
     double EmbeddedIconScale = 1.0,
-    double EmbeddedOffsetX = 0)
+    double EmbeddedOffsetX = 0,
+    EmbeddedTextLayout EmbeddedTextLayout = EmbeddedTextLayout.SingleLine,
+    EmbeddedTextAlignment EmbeddedTextAlignment = EmbeddedTextAlignment.Left)
 {
     public static Settings Default =>
         new(

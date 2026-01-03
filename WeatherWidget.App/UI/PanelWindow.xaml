@@ -123,7 +123,30 @@
                             <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12" Margin="0,10,0,0">
                                 <StackPanel>
                                     <TextBlock Text="嵌入任务栏设置" Style="{StaticResource ValueText}" FontWeight="SemiBold" />
-                                    <TextBlock Text="提示：嵌入模式文字的字号/间隔复用下方角标配置（字号=FontScale，间隔=OffsetX）" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                    <TextBlock Text="提示：嵌入模式文字复用下方角标配置（字号=FontScale，颜色=Color，间隔=OffsetX）" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="文字布局" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="1" SelectedValue="{Binding EmbeddedTextLayout}" SelectedValuePath="Tag" Margin="6,0,0,0">
+                                            <ComboBoxItem Content="单行" Tag="{x:Static models:EmbeddedTextLayout.SingleLine}" />
+                                            <ComboBoxItem Content="三行" Tag="{x:Static models:EmbeddedTextLayout.ThreeLines}" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="对齐" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="1" SelectedValue="{Binding EmbeddedTextAlignment}" SelectedValuePath="Tag" Margin="6,0,0,0">
+                                            <ComboBoxItem Content="左对齐" Tag="{x:Static models:EmbeddedTextAlignment.Left}" />
+                                            <ComboBoxItem Content="居中" Tag="{x:Static models:EmbeddedTextAlignment.Center}" />
+                                            <ComboBoxItem Content="右对齐" Tag="{x:Static models:EmbeddedTextAlignment.Right}" />
+                                        </ComboBox>
+                                    </Grid>
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />

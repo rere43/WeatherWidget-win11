@@ -62,6 +62,8 @@ public sealed class PanelViewModel : ObservableObject
     private IconDisplayMode _iconDisplayMode;
     private double _embeddedIconScale;
     private double _embeddedOffsetX;
+    private EmbeddedTextLayout _embeddedTextLayout;
+    private EmbeddedTextAlignment _embeddedTextAlignment;
     private readonly DispatcherTimer _settingsSaveTimer;
     private bool _settingsSavePending;
 
@@ -140,6 +142,8 @@ public sealed class PanelViewModel : ObservableObject
         _iconDisplayMode = Settings.IconDisplayMode;
         _embeddedIconScale = Settings.EmbeddedIconScale;
         _embeddedOffsetX = Settings.EmbeddedOffsetX;
+        _embeddedTextLayout = Settings.EmbeddedTextLayout;
+        _embeddedTextAlignment = Settings.EmbeddedTextAlignment;
 
         _settingsSaveTimer = new DispatcherTimer
         {
@@ -756,6 +760,38 @@ public sealed class PanelViewModel : ObservableObject
             }
 
             Settings = Settings with { EmbeddedOffsetX = value };
+            ScheduleSettingsSave();
+            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public EmbeddedTextLayout EmbeddedTextLayout
+    {
+        get => _embeddedTextLayout;
+        set
+        {
+            if (!SetProperty(ref _embeddedTextLayout, value))
+            {
+                return;
+            }
+
+            Settings = Settings with { EmbeddedTextLayout = value };
+            ScheduleSettingsSave();
+            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public EmbeddedTextAlignment EmbeddedTextAlignment
+    {
+        get => _embeddedTextAlignment;
+        set
+        {
+            if (!SetProperty(ref _embeddedTextAlignment, value))
+            {
+                return;
+            }
+
+            Settings = Settings with { EmbeddedTextAlignment = value };
             ScheduleSettingsSave();
             WeatherUpdated?.Invoke(this, EventArgs.Empty);
         }

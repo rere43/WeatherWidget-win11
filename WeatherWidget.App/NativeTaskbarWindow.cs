@@ -392,11 +392,22 @@ public sealed class NativeTaskbarWindow : IDisposable
         // 计算需要的宽度，避免字号变大后被裁剪
         var fontFamily = new FontFamily(string.IsNullOrWhiteSpace(settings.BadgeFontFamily) ? "Segoe UI" : settings.BadgeFontFamily);
         var typeface = new Typeface(fontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
-        var baseFontSize = taskbarClientRect.Height * 0.45;
+        double baseFontSize;
+        double rowLimit;
+        if (settings.EmbeddedTextLayout == EmbeddedTextLayout.ThreeLines)
+        {
+            baseFontSize = taskbarClientRect.Height / 3.0 * 0.82;
+            rowLimit = taskbarClientRect.Height / 3.0 * 0.98;
+        }
+        else
+        {
+            baseFontSize = taskbarClientRect.Height * 0.45;
+            rowLimit = double.PositiveInfinity;
+        }
 
-        var tempFontSize = baseFontSize * Math.Clamp(settings.TempBadgeFontScale, 0.5, 3.0);
-        var cornerFontSize = baseFontSize * Math.Clamp(settings.CornerBadgeFontScale, 0.5, 3.0);
-        var extraFontSize = baseFontSize * Math.Clamp(settings.ExtraBadgeFontScale, 0.5, 3.0);
+        var tempFontSize = Math.Min(baseFontSize * Math.Clamp(settings.TempBadgeFontScale, 0.5, 3.0), rowLimit);
+        var cornerFontSize = Math.Min(baseFontSize * Math.Clamp(settings.CornerBadgeFontScale, 0.5, 3.0), rowLimit);
+        var extraFontSize = Math.Min(baseFontSize * Math.Clamp(settings.ExtraBadgeFontScale, 0.5, 3.0), rowLimit);
 
         var pixelsPerDip = GetPixelsPerDip();
         var tempWidth = MeasureTextWidth(_contentTempText, typeface, tempFontSize, pixelsPerDip);
@@ -407,22 +418,32 @@ public sealed class NativeTaskbarWindow : IDisposable
         const int paddingRight = 4;
 
         var width = paddingLeft + _contentIconSize;
-        if (!string.IsNullOrWhiteSpace(_contentTempText))
+        if (settings.EmbeddedTextLayout == EmbeddedTextLayout.ThreeLines)
         {
-            width += _contentGapAfterIcon + (int)Math.Ceiling(tempWidth);
+            // 三行：宽度以最长一行决定
+            var maxLineWidth = Math.Max(tempWidth, Math.Max(cornerWidth, extraWidth));
+            width += _contentGapAfterIcon + (int)Math.Ceiling(maxLineWidth) + paddingRight;
         }
-
-        if (!string.IsNullOrWhiteSpace(_contentCornerText))
+        else
         {
-            width += _contentGapAfterTemp + (int)Math.Ceiling(cornerWidth);
-        }
+            // 单行：横向累加
+            if (!string.IsNullOrWhiteSpace(_contentTempText))
+            {
+                width += _contentGapAfterIcon + (int)Math.Ceiling(tempWidth);
+            }
 
-        if (!string.IsNullOrWhiteSpace(_contentExtraText))
-        {
-            width += _contentGapAfterCorner + (int)Math.Ceiling(extraWidth);
-        }
+            if (!string.IsNullOrWhiteSpace(_contentCornerText))
+            {
+                width += _contentGapAfterTemp + (int)Math.Ceiling(cornerWidth);
+            }
 
-        width += paddingRight;
+            if (!string.IsNullOrWhiteSpace(_contentExtraText))
+            {
+                width += _contentGapAfterCorner + (int)Math.Ceiling(extraWidth);
+            }
+
+            width += paddingRight;
+        }
         width = Math.Clamp(width, 80, Math.Max(80, taskbarClientRect.Width));
 
         _width = width;
@@ -618,57 +639,117 @@ public sealed class NativeTaskbarWindow : IDisposable
                 ctx.DrawImage(icon, new Rect(4, iconY, iconSize, iconSize));
             }
 
-            // 文本（复用三组角标配置：字号/颜色/间隔/格式），统一基线对齐
+            // 文本（复用三组角标配置：字号/颜色/间隔/格式）
             var pixelsPerDip = GetPixelsPerDip();
             var fontFamily = new FontFamily(string.IsNullOrWhiteSpace(settings.BadgeFontFamily) ? "Segoe UI" : settings.BadgeFontFamily);
             var typeface = new Typeface(fontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
-            var baseFontSize = _height * 0.45;
-
-            FormattedText? tempText = null;
-            FormattedText? cornerText = null;
-            FormattedText? extraText = null;
-
-            var segments = new List<FormattedText>(capacity: 3);
-
-            if (!string.IsNullOrWhiteSpace(_contentTempText))
+            if (settings.EmbeddedTextLayout == EmbeddedTextLayout.ThreeLines)
             {
-                tempText = CreateFormattedText(_contentTempText, typeface, baseFontSize * settings.TempBadgeFontScale, ParseColor(settings.TempBadgeColor), pixelsPerDip);
-                segments.Add(tempText);
+                var baseFontSize = _height / 3.0 * 0.82;
+                var tempFontSize = Math.Min(baseFontSize * settings.TempBadgeFontScale, _height / 3.0 * 0.98);
+                var cornerFontSize = Math.Min(baseFontSize * settings.CornerBadgeFontScale, _height / 3.0 * 0.98);
+                var extraFontSize = Math.Min(baseFontSize * settings.ExtraBadgeFontScale, _height / 3.0 * 0.98);
+
+                var tempText = CreateFormattedText(_contentTempText, typeface, tempFontSize, ParseColor(settings.TempBadgeColor), pixelsPerDip);
+                var cornerLine = string.IsNullOrWhiteSpace(_contentCornerText) ? string.Empty : _contentCornerText!;
+                var extraLine = string.IsNullOrWhiteSpace(_contentExtraText) ? string.Empty : _contentExtraText!;
+                var cornerText = CreateFormattedText(string.IsNullOrWhiteSpace(cornerLine) ? " " : cornerLine, typeface, cornerFontSize, ParseColor(settings.CornerBadgeColor), pixelsPerDip);
+                var extraText = CreateFormattedText(string.IsNullOrWhiteSpace(extraLine) ? " " : extraLine, typeface, extraFontSize, ParseColor(settings.ExtraBadgeColor), pixelsPerDip);
+
+                var paddingLeft = 4 + iconSize + _contentGapAfterIcon;
+                var paddingRight = 4;
+                var textAreaWidth = Math.Max(1, _width - paddingLeft - paddingRight);
+
+                var rowHeight = _height / 3.0;
+                DrawAlignedLine(ctx, tempText, paddingLeft, textAreaWidth, rowTopY: 0 * rowHeight, rowHeight: rowHeight, alignment: settings.EmbeddedTextAlignment);
+                if (!string.IsNullOrWhiteSpace(cornerLine))
+                {
+                    DrawAlignedLine(ctx, cornerText, paddingLeft, textAreaWidth, rowTopY: 1 * rowHeight, rowHeight: rowHeight, alignment: settings.EmbeddedTextAlignment);
+                }
+                if (!string.IsNullOrWhiteSpace(extraLine))
+                {
+                    DrawAlignedLine(ctx, extraText, paddingLeft, textAreaWidth, rowTopY: 2 * rowHeight, rowHeight: rowHeight, alignment: settings.EmbeddedTextAlignment);
+                }
             }
-
-            if (!string.IsNullOrWhiteSpace(_contentCornerText))
+            else
             {
-                cornerText = CreateFormattedText(_contentCornerText!, typeface, baseFontSize * settings.CornerBadgeFontScale, ParseColor(settings.CornerBadgeColor), pixelsPerDip);
-                segments.Add(cornerText);
-            }
+                // 单行：横向排布，统一基线
+                var baseFontSize = _height * 0.45;
 
-            if (!string.IsNullOrWhiteSpace(_contentExtraText))
-            {
-                extraText = CreateFormattedText(_contentExtraText!, typeface, baseFontSize * settings.ExtraBadgeFontScale, ParseColor(settings.ExtraBadgeColor), pixelsPerDip);
-                segments.Add(extraText);
-            }
+                FormattedText? tempText = null;
+                FormattedText? cornerText = null;
+                FormattedText? extraText = null;
 
-            var baselineY = GetBaselineY(_height, segments);
+                var segments = new List<FormattedText>(capacity: 3);
 
-            var x = 4 + iconSize;
-            if (tempText is not null)
-            {
-                x += _contentGapAfterIcon;
-                DrawTextOnBaseline(ctx, tempText, x, baselineY);
-                x = AdvanceX(tempText, x);
-            }
+                if (!string.IsNullOrWhiteSpace(_contentTempText))
+                {
+                    tempText = CreateFormattedText(_contentTempText, typeface, baseFontSize * settings.TempBadgeFontScale, ParseColor(settings.TempBadgeColor), pixelsPerDip);
+                    segments.Add(tempText);
+                }
 
-            if (cornerText is not null)
-            {
-                x += _contentGapAfterTemp;
-                DrawTextOnBaseline(ctx, cornerText, x, baselineY);
-                x = AdvanceX(cornerText, x);
-            }
+                if (!string.IsNullOrWhiteSpace(_contentCornerText))
+                {
+                    cornerText = CreateFormattedText(_contentCornerText!, typeface, baseFontSize * settings.CornerBadgeFontScale, ParseColor(settings.CornerBadgeColor), pixelsPerDip);
+                    segments.Add(cornerText);
+                }
 
-            if (extraText is not null)
-            {
-                x += _contentGapAfterCorner;
-                DrawTextOnBaseline(ctx, extraText, x, baselineY);
+                if (!string.IsNullOrWhiteSpace(_contentExtraText))
+                {
+                    extraText = CreateFormattedText(_contentExtraText!, typeface, baseFontSize * settings.ExtraBadgeFontScale, ParseColor(settings.ExtraBadgeColor), pixelsPerDip);
+                    segments.Add(extraText);
+                }
+
+                var baselineY = GetBaselineY(_height, segments);
+
+                var paddingLeft = 4 + iconSize + _contentGapAfterIcon;
+                var paddingRight = 4;
+
+                var totalTextWidth = 0.0;
+                if (tempText is not null)
+                {
+                    totalTextWidth += tempText.WidthIncludingTrailingWhitespace;
+                }
+                if (cornerText is not null)
+                {
+                    totalTextWidth += _contentGapAfterTemp + cornerText.WidthIncludingTrailingWhitespace;
+                }
+                if (extraText is not null)
+                {
+                    totalTextWidth += _contentGapAfterCorner + extraText.WidthIncludingTrailingWhitespace;
+                }
+
+                var textAreaWidth = Math.Max(1, _width - paddingLeft - paddingRight);
+                var startX = settings.EmbeddedTextAlignment switch
+                {
+                    EmbeddedTextAlignment.Center => paddingLeft + (textAreaWidth - totalTextWidth) / 2,
+                    EmbeddedTextAlignment.Right => paddingLeft + (textAreaWidth - totalTextWidth),
+                    _ => paddingLeft,
+                };
+                if (startX < paddingLeft)
+                {
+                    startX = paddingLeft;
+                }
+
+                var x = (int)Math.Round(startX);
+                if (tempText is not null)
+                {
+                    DrawTextOnBaseline(ctx, tempText, x, baselineY);
+                    x = AdvanceX(tempText, x);
+                }
+
+                if (cornerText is not null)
+                {
+                    x += _contentGapAfterTemp;
+                    DrawTextOnBaseline(ctx, cornerText, x, baselineY);
+                    x = AdvanceX(cornerText, x);
+                }
+
+                if (extraText is not null)
+                {
+                    x += _contentGapAfterCorner;
+                    DrawTextOnBaseline(ctx, extraText, x, baselineY);
+                }
             }
         }
 
@@ -771,6 +852,32 @@ public sealed class NativeTaskbarWindow : IDisposable
     {
         var topY = baselineY - formatted.Baseline;
         ctx.DrawText(formatted, new Point(x, topY));
+    }
+
+    private static void DrawAlignedLine(
+        DrawingContext ctx,
+        FormattedText formatted,
+        int areaLeft,
+        int areaWidth,
+        double rowTopY,
+        double rowHeight,
+        EmbeddedTextAlignment alignment)
+    {
+        var width = formatted.WidthIncludingTrailingWhitespace;
+        double x = alignment switch
+        {
+            EmbeddedTextAlignment.Center => areaLeft + (areaWidth - width) / 2,
+            EmbeddedTextAlignment.Right => areaLeft + (areaWidth - width),
+            _ => areaLeft,
+        };
+
+        if (x < areaLeft)
+        {
+            x = areaLeft;
+        }
+
+        var y = rowTopY + (rowHeight - formatted.Height) / 2;
+        ctx.DrawText(formatted, new Point(x, y));
     }
 
     private static void ConfigureVisualQuality(Visual visual)
