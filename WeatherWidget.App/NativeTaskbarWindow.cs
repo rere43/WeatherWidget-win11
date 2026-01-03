@@ -27,6 +27,9 @@ public sealed class NativeTaskbarWindow : IDisposable
     private static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -106,6 +109,9 @@ public sealed class NativeTaskbarWindow : IDisposable
 
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
@@ -201,20 +207,20 @@ public sealed class NativeTaskbarWindow : IDisposable
     }
 
     private const uint WS_CHILD = 0x40000000;
-    private const uint WS_POPUP = 0x80000000;
     private const uint WS_VISIBLE = 0x10000000;
     private const uint WS_CLIPSIBLINGS = 0x04000000;
     private const uint WS_EX_TOOLWINDOW = 0x00000080;
     private const uint WS_EX_NOACTIVATE = 0x08000000;
     private const uint WS_EX_TRANSPARENT = 0x00000020;
     private const uint WS_EX_LAYERED = 0x00080000;
-    private const uint WS_EX_TOPMOST = 0x00000008;
     private const uint WM_PAINT = 0x000F;
     private const uint WM_DESTROY = 0x0002;
     private const uint WM_ERASEBKGND = 0x0014;
     private const uint WM_NCHITTEST = 0x0084;
     private const uint WM_MOUSEACTIVATE = 0x0021;
+    private const uint WM_SHOWWINDOW = 0x0018;
     private const uint WM_WINDOWPOSCHANGING = 0x0046;
+    private const uint WM_WINDOWPOSCHANGED = 0x0047;
     private const uint WM_LBUTTONDOWN = 0x0201;
     private const uint WM_RBUTTONDOWN = 0x0204;
     private const uint WM_LBUTTONUP = 0x0202;
@@ -232,7 +238,7 @@ public sealed class NativeTaskbarWindow : IDisposable
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const uint SWP_HIDEWINDOW = 0x0080;
 
-    private static readonly IntPtr HWND_TOPMOST = new(-1);
+    private const int DWMWA_CLOAKED = 14;
 
     #endregion
 
@@ -262,6 +268,8 @@ public sealed class NativeTaskbarWindow : IDisposable
     private int _contentGapAfterIcon = 8;
     private int _contentGapAfterTemp = 8;
     private int _contentGapAfterCorner = 8;
+    private bool? _traceLastVisible;
+    private int? _traceLastCloaked;
 
     public NativeTaskbarWindow(PanelViewModel panelViewModel, IconRenderer iconRenderer)
     {
@@ -325,10 +333,10 @@ public sealed class NativeTaskbarWindow : IDisposable
             AppLogger.Info($"NativeTaskbarWindow: Creating at x={x}, y={y}, size={_width}x{_height}");
 
             _hwnd = CreateWindowEx(
-                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_TOPMOST,
+                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
                 "WeatherWidgetTaskbar",
                 "WeatherWidget",
-                WS_POPUP | WS_VISIBLE,
+                WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                 x,
                 y,
                 _width,
@@ -347,6 +355,7 @@ public sealed class NativeTaskbarWindow : IDisposable
 
             _isEmbedded = true;
             AppLogger.Info($"NativeTaskbarWindow: Created hwnd=0x{_hwnd:X}");
+            TraceWindowState("created");
 
             UpdateTaskbarAnchors();
             AdjustPosition(forceAdjust: true);
@@ -379,6 +388,7 @@ public sealed class NativeTaskbarWindow : IDisposable
                     }
 
                     AdjustPosition(forceAdjust: false);
+                    TraceWindowState("positionTimer");
                 });
             }, null, 0, 1000);
 
@@ -640,8 +650,15 @@ public sealed class NativeTaskbarWindow : IDisposable
             _lastHeight = targetHeight;
             _lastWidth = _width;
 
-            SetWindowPos(_hwnd, HWND_TOPMOST, screenX, screenY, _width, targetHeight,
-                SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            var flags = SWP_NOACTIVATE | SWP_SHOWWINDOW;
+            // 子窗口：坐标以父窗口 client 为基准；默认不频繁改 Z-order，避免抖动
+            var insertAfter = IntPtr.Zero; // HWND_TOP
+            if (!forceAdjust)
+            {
+                flags |= SWP_NOZORDER;
+            }
+
+            SetWindowPos(_hwnd, insertAfter, targetX, targetY, _width, targetHeight, flags);
 
             if (shouldUpdateVisual)
             {
@@ -658,6 +675,10 @@ public sealed class NativeTaskbarWindow : IDisposable
     {
         switch (msg)
         {
+            case WM_SHOWWINDOW:
+                TraceWindowState($"WM_SHOWWINDOW wParam={wParam}");
+                break;
+
             case WM_PAINT:
                 OnPaint(hWnd);
                 return IntPtr.Zero;
@@ -677,8 +698,8 @@ public sealed class NativeTaskbarWindow : IDisposable
                 return (IntPtr)MA_NOACTIVATE;
 
             case WM_WINDOWPOSCHANGING:
-                // 任务栏显示预览缩略图/切换窗口时，Explorer 可能会对 owned window 做隐藏或调整 Z-order，导致“闪一下/消失”。
-                // 这里拦截并尽量保持可见 + 维持在非置顶窗口顶部，避免靠定时 SetWindowPos 保活造成体验抖动。
+                // 任务栏显示预览缩略图/切换窗口时，Explorer 可能会对嵌入窗口做隐藏或调整 Z-order，导致“闪一下/消失”。
+                // 这里尽量拦截隐藏，避免靠高频 SetWindowPos “保活”造成体验抖动。
                 try
                 {
                     var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
@@ -692,13 +713,14 @@ public sealed class NativeTaskbarWindow : IDisposable
 
                     if ((pos.flags & SWP_NOZORDER) == 0 && pos.hwndInsertAfter != IntPtr.Zero)
                     {
-                        pos.hwndInsertAfter = HWND_TOPMOST;
+                        pos.hwndInsertAfter = IntPtr.Zero; // HWND_TOP
                         changed = true;
                     }
 
                     if (changed)
                     {
                         Marshal.StructureToPtr(pos, lParam, false);
+                        TraceWindowState("WM_WINDOWPOSCHANGING");
                     }
                 }
                 catch
@@ -706,6 +728,10 @@ public sealed class NativeTaskbarWindow : IDisposable
                     // ignored
                 }
 
+                break;
+
+            case WM_WINDOWPOSCHANGED:
+                TraceWindowState("WM_WINDOWPOSCHANGED");
                 break;
 
             case WM_LBUTTONDOWN:
@@ -720,7 +746,6 @@ public sealed class NativeTaskbarWindow : IDisposable
 
     private void OnPaint(IntPtr hWnd)
     {
-        AppLogger.Info("NativeTaskbarWindow: OnPaint called");
         BeginPaint(hWnd, out var ps);
         try
         {
@@ -1063,6 +1088,46 @@ public sealed class NativeTaskbarWindow : IDisposable
         {
             return Colors.White;
         }
+    }
+
+    private void TraceWindowState(string reason)
+    {
+        if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd))
+        {
+            return;
+        }
+
+        var visible = false;
+        try
+        {
+            visible = IsWindowVisible(_hwnd);
+        }
+        catch
+        {
+            // ignore
+        }
+
+        var cloaked = -1;
+        try
+        {
+            if (DwmGetWindowAttribute(_hwnd, DWMWA_CLOAKED, out var v, sizeof(int)) == 0)
+            {
+                cloaked = v;
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        if (_traceLastVisible == visible && _traceLastCloaked == cloaked)
+        {
+            return;
+        }
+
+        _traceLastVisible = visible;
+        _traceLastCloaked = cloaked;
+        AppLogger.Info($"NativeTaskbarWindow: state changed ({reason}) visible={visible} cloaked=0x{cloaked:X}");
     }
 
     private void DrawBitmapToHdc(IntPtr hdc, BitmapSource bmp, int x, int y)
