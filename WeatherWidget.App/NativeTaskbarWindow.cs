@@ -208,6 +208,7 @@ public sealed class NativeTaskbarWindow : IDisposable
     private const uint WS_EX_NOACTIVATE = 0x08000000;
     private const uint WS_EX_TRANSPARENT = 0x00000020;
     private const uint WS_EX_LAYERED = 0x00080000;
+    private const uint WS_EX_TOPMOST = 0x00000008;
     private const uint WM_PAINT = 0x000F;
     private const uint WM_DESTROY = 0x0002;
     private const uint WM_ERASEBKGND = 0x0014;
@@ -230,6 +231,8 @@ public sealed class NativeTaskbarWindow : IDisposable
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const uint SWP_HIDEWINDOW = 0x0080;
+
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
 
     #endregion
 
@@ -322,7 +325,7 @@ public sealed class NativeTaskbarWindow : IDisposable
             AppLogger.Info($"NativeTaskbarWindow: Creating at x={x}, y={y}, size={_width}x{_height}");
 
             _hwnd = CreateWindowEx(
-                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
+                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_TOPMOST,
                 "WeatherWidgetTaskbar",
                 "WeatherWidget",
                 WS_POPUP | WS_VISIBLE,
@@ -637,7 +640,7 @@ public sealed class NativeTaskbarWindow : IDisposable
             _lastHeight = targetHeight;
             _lastWidth = _width;
 
-            SetWindowPos(_hwnd, IntPtr.Zero, screenX, screenY, _width, targetHeight,
+            SetWindowPos(_hwnd, HWND_TOPMOST, screenX, screenY, _width, targetHeight,
                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
 
             if (shouldUpdateVisual)
@@ -689,7 +692,7 @@ public sealed class NativeTaskbarWindow : IDisposable
 
                     if ((pos.flags & SWP_NOZORDER) == 0 && pos.hwndInsertAfter != IntPtr.Zero)
                     {
-                        pos.hwndInsertAfter = IntPtr.Zero; // HWND_TOP
+                        pos.hwndInsertAfter = HWND_TOPMOST;
                         changed = true;
                     }
 
