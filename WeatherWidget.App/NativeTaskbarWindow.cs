@@ -77,6 +77,18 @@ public sealed class NativeTaskbarWindow : IDisposable
         ref BLENDFUNCTION pblend,
         uint dwFlags);
 
+    [DllImport("user32.dll", SetLastError = true, EntryPoint = "UpdateLayeredWindow")]
+    private static extern bool UpdateLayeredWindowOptional(
+        IntPtr hwnd,
+        IntPtr hdcDst,
+        IntPtr pptDst,
+        IntPtr psize,
+        IntPtr hdcSrc,
+        ref POINT pptSrc,
+        int crKey,
+        ref BLENDFUNCTION pblend,
+        uint dwFlags);
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetDC(IntPtr hWnd);
 
@@ -1194,15 +1206,22 @@ public sealed class NativeTaskbarWindow : IDisposable
             }
         };
 
-        var hdcScreen = GetDC(IntPtr.Zero);
-        if (hdcScreen == IntPtr.Zero)
+        var hdcDstOwner = _hwnd;
+        var hdcDst = GetDC(_hwnd);
+        if (hdcDst == IntPtr.Zero)
+        {
+            hdcDstOwner = IntPtr.Zero;
+            hdcDst = GetDC(IntPtr.Zero);
+        }
+
+        if (hdcDst == IntPtr.Zero)
         {
             return;
         }
 
         try
         {
-            var hdcMem = CreateCompatibleDC(hdcScreen);
+            var hdcMem = CreateCompatibleDC(hdcDst);
             var hBitmap = CreateDIBSection(hdcMem, ref bmi, 0, out var bits, IntPtr.Zero, 0);
             if (hBitmap == IntPtr.Zero || bits == IntPtr.Zero)
             {
@@ -1216,8 +1235,6 @@ public sealed class NativeTaskbarWindow : IDisposable
                 var oldBmp = SelectObject(hdcMem, hBitmap);
                 try
                 {
-                    var ptDst = new POINT { x = _lastX == int.MinValue ? 0 : _lastX, y = _lastY == int.MinValue ? 0 : _lastY };
-                    var size = new SIZE { cx = width, cy = height };
                     var ptSrc = new POINT { x = 0, y = 0 };
                     var blend = new BLENDFUNCTION
                     {
@@ -1227,7 +1244,9 @@ public sealed class NativeTaskbarWindow : IDisposable
                         AlphaFormat = AC_SRC_ALPHA,
                     };
 
-                    if (!UpdateLayeredWindow(_hwnd, hdcScreen, ref ptDst, ref size, hdcMem, ref ptSrc, 0, ref blend, ULW_ALPHA))
+                    // 子窗口模式下不要在 UpdateLayeredWindow 里“顺带移动窗口”，避免坐标体系差异导致窗口跑偏/不可见。
+                    // 位置与大小统一由 SetWindowPos/MoveWindow 负责（参考 TrafficMonitor 的调用方式：pptDst=nullptr）。
+                    if (!UpdateLayeredWindowOptional(_hwnd, hdcDst, IntPtr.Zero, IntPtr.Zero, hdcMem, ref ptSrc, 0, ref blend, ULW_ALPHA))
                     {
                         var err = Marshal.GetLastWin32Error();
                         AppLogger.Info($"NativeTaskbarWindow: UpdateLayeredWindow failed, error={err}");
@@ -1246,7 +1265,7 @@ public sealed class NativeTaskbarWindow : IDisposable
         }
         finally
         {
-            ReleaseDC(IntPtr.Zero, hdcScreen);
+            ReleaseDC(hdcDstOwner, hdcDst);
         }
     }
 
