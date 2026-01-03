@@ -211,6 +211,8 @@ public sealed class NativeTaskbarWindow : IDisposable
     private const byte AC_SRC_ALPHA = 0x01;
     private const uint SRCCOPY = 0x00CC0020;
     private const uint ULW_ALPHA = 0x00000002;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_SHOWWINDOW = 0x0040;
@@ -306,7 +308,7 @@ public sealed class NativeTaskbarWindow : IDisposable
             AppLogger.Info($"NativeTaskbarWindow: Creating at x={x}, y={y}, size={_width}x{_height}");
 
             _hwnd = CreateWindowEx(
-                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_LAYERED,
+                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
                 "WeatherWidgetTaskbar",
                 "WeatherWidget",
                 WS_POPUP | WS_VISIBLE,
@@ -612,6 +614,9 @@ public sealed class NativeTaskbarWindow : IDisposable
 
             if (!forceAdjust && screenX == _lastX && screenY == _lastY && targetHeight == _lastHeight && _width == _lastWidth)
             {
+                // Explorer 在显示任务栏预览缩略图/切换窗口时，可能改变 Z-order，导致嵌入窗口“消失”。
+                // 这里周期性地把窗口提升到非置顶窗口的顶部，避免需要高频“可见性抢救”。
+                SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
                 return;
             }
 
