@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
@@ -63,6 +62,18 @@ public sealed class NativeTaskbarWindow : IDisposable
     [DllImport("user32.dll")]
     private static extern bool EndPaint(IntPtr hWnd, ref PAINTSTRUCT lpPaint);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UpdateLayeredWindow(
+        IntPtr hwnd,
+        IntPtr hdcDst,
+        ref POINT pptDst,
+        ref SIZE psize,
+        IntPtr hdcSrc,
+        ref POINT pptSrc,
+        int crKey,
+        ref BLENDFUNCTION pblend,
+        uint dwFlags);
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetDC(IntPtr hWnd);
 
@@ -84,9 +95,6 @@ public sealed class NativeTaskbarWindow : IDisposable
     [DllImport("gdi32.dll")]
     private static extern bool BitBlt(IntPtr hdc, int x, int y, int cx, int cy, IntPtr hdcSrc, int x1, int y1, uint rop);
 
-    [DllImport("gdi32.dll")]
-    private static extern uint GetPixel(IntPtr hdc, int nXPos, int nYPos);
-
     [DllImport("msimg32.dll", SetLastError = true)]
     private static extern bool AlphaBlend(
         IntPtr hdcDest, int xoriginDest, int yoriginDest, int wDest, int hDest,
@@ -105,6 +113,20 @@ public sealed class NativeTaskbarWindow : IDisposable
         public int Left, Top, Right, Bottom;
         public int Width => Right - Left;
         public int Height => Bottom - Top;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int x;
+        public int y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SIZE
+    {
+        public int cx;
+        public int cy;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -167,6 +189,7 @@ public sealed class NativeTaskbarWindow : IDisposable
     }
 
     private const uint WS_CHILD = 0x40000000;
+    private const uint WS_POPUP = 0x80000000;
     private const uint WS_VISIBLE = 0x10000000;
     private const uint WS_CLIPSIBLINGS = 0x04000000;
     private const uint WS_EX_TOOLWINDOW = 0x00000080;
@@ -187,6 +210,7 @@ public sealed class NativeTaskbarWindow : IDisposable
     private const byte AC_SRC_OVER = 0x00;
     private const byte AC_SRC_ALPHA = 0x01;
     private const uint SRCCOPY = 0x00CC0020;
+    private const uint ULW_ALPHA = 0x00000002;
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_SHOWWINDOW = 0x0040;
@@ -207,9 +231,11 @@ public sealed class NativeTaskbarWindow : IDisposable
     private int _height = 40;
     private bool _isEmbedded;
     private bool _disposed;
+    private bool _eventSubscribed;
     private int _lastX = int.MinValue;
     private int _lastY = int.MinValue;
     private int _lastHeight = int.MinValue;
+    private int _lastWidth = int.MinValue;
     private int _contentIconSize = 32;
     private string _contentTempText = string.Empty;
     private string? _contentCornerText;
@@ -228,6 +254,11 @@ public sealed class NativeTaskbarWindow : IDisposable
     {
         try
         {
+            if (_hwnd != IntPtr.Zero && IsWindow(_hwnd))
+            {
+                return true;
+            }
+
             // 找任务栏
             _taskbarHwnd = FindWindow("Shell_TrayWnd", null);
             if (_taskbarHwnd == IntPtr.Zero)
@@ -275,10 +306,10 @@ public sealed class NativeTaskbarWindow : IDisposable
             AppLogger.Info($"NativeTaskbarWindow: Creating at x={x}, y={y}, size={_width}x{_height}");
 
             _hwnd = CreateWindowEx(
-                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_LAYERED,
                 "WeatherWidgetTaskbar",
                 "WeatherWidget",
-                WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+                WS_POPUP | WS_VISIBLE,
                 x,
                 y,
                 _width,
@@ -300,20 +331,43 @@ public sealed class NativeTaskbarWindow : IDisposable
 
             UpdateTaskbarAnchors();
             AdjustPosition(forceAdjust: true);
+            Invalidate();
 
             // 定时更新
-            _updateTimer = new System.Threading.Timer(_ =>
+            _updateTimer ??= new System.Threading.Timer(_ =>
             {
-                Application.Current?.Dispatcher?.BeginInvoke(Invalidate);
+                Application.Current?.Dispatcher?.BeginInvoke(() =>
+                {
+                    if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd))
+                    {
+                        TryCreate();
+                        return;
+                    }
+
+                    Invalidate();
+                });
             }, null, 0, 5000);
 
             // 定时调整位置（类似 TrafficMonitor：按任务栏/托盘变化纠偏，但不做“强制置顶/可见性抢救”）
-            _positionTimer = new System.Threading.Timer(_ =>
+            _positionTimer ??= new System.Threading.Timer(_ =>
             {
-                Application.Current?.Dispatcher?.BeginInvoke(() => AdjustPosition(forceAdjust: false));
+                Application.Current?.Dispatcher?.BeginInvoke(() =>
+                {
+                    if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd))
+                    {
+                        TryCreate();
+                        return;
+                    }
+
+                    AdjustPosition(forceAdjust: false);
+                });
             }, null, 0, 1000);
 
-            _panelViewModel.WeatherUpdated += (_, _) => Application.Current?.Dispatcher?.BeginInvoke(() => AdjustPosition(forceAdjust: true));
+            if (!_eventSubscribed)
+            {
+                _eventSubscribed = true;
+                _panelViewModel.WeatherUpdated += (_, _) => Application.Current?.Dispatcher?.BeginInvoke(() => AdjustPosition(forceAdjust: true));
+            }
 
             return true;
         }
@@ -326,9 +380,18 @@ public sealed class NativeTaskbarWindow : IDisposable
 
     private void Invalidate()
     {
-        if (_hwnd != IntPtr.Zero)
+        if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd))
         {
-            InvalidateRect(_hwnd, IntPtr.Zero, false);
+            return;
+        }
+
+        try
+        {
+            UpdateLayeredVisual();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Info($"NativeTaskbarWindow: Invalidate failed: {ex.Message}");
         }
     }
 
@@ -476,8 +539,6 @@ public sealed class NativeTaskbarWindow : IDisposable
                 {
                     return;
                 }
-
-                _ = SetParent(_hwnd, _taskbarHwnd);
                 UpdateTaskbarAnchors();
                 forceAdjust = true;
             }
@@ -544,20 +605,29 @@ public sealed class NativeTaskbarWindow : IDisposable
                 targetY = 0;
             }
 
-            if (!forceAdjust && targetX == _lastX && targetY == _lastY && targetHeight == _lastHeight)
+            var screenX = taskbarScreenRect.Left + targetX;
+            var screenY = taskbarScreenRect.Top + targetY;
+
+            var shouldUpdateVisual = forceAdjust || targetHeight != _lastHeight || _width != _lastWidth;
+
+            if (!forceAdjust && screenX == _lastX && screenY == _lastY && targetHeight == _lastHeight && _width == _lastWidth)
             {
                 return;
             }
 
             _height = targetHeight;
-            _lastX = targetX;
-            _lastY = targetY;
+            _lastX = screenX;
+            _lastY = screenY;
             _lastHeight = targetHeight;
+            _lastWidth = _width;
 
-            // 作为任务栏子窗口，尽量保持在同级窗口顶层，避免被其它子窗口覆盖
-            SetWindowPos(_hwnd, IntPtr.Zero, targetX, targetY, _width, targetHeight,
+            SetWindowPos(_hwnd, IntPtr.Zero, screenX, screenY, _width, targetHeight,
                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
-            Invalidate();
+
+            if (shouldUpdateVisual)
+            {
+                Invalidate();
+            }
         }
         catch (Exception ex)
         {
@@ -600,27 +670,10 @@ public sealed class NativeTaskbarWindow : IDisposable
     private void OnPaint(IntPtr hWnd)
     {
         AppLogger.Info("NativeTaskbarWindow: OnPaint called");
-        var hdc = BeginPaint(hWnd, out var ps);
+        BeginPaint(hWnd, out var ps);
         try
         {
-            var snapshot = _panelViewModel.Snapshot;
-            if (snapshot is null)
-            {
-                AppLogger.Info("NativeTaskbarWindow: OnPaint - snapshot is null");
-                return;
-            }
-
-            // 用 WPF 渲染内容到位图
-            var bitmap = RenderContent(snapshot.Now, _panelViewModel.Settings);
-            if (bitmap is not BitmapSource bmp)
-            {
-                AppLogger.Info("NativeTaskbarWindow: OnPaint - bitmap is null");
-                return;
-            }
-
-            // 转换为 DIB 并绘制
-            DrawBitmapToHdc(hdc, bmp, 0, 0);
-            AppLogger.Info("NativeTaskbarWindow: OnPaint - drawn successfully");
+            // layered window 由 UpdateLayeredWindow 更新像素；这里只负责验证重绘区域
         }
         catch (Exception ex)
         {
@@ -638,11 +691,7 @@ public sealed class NativeTaskbarWindow : IDisposable
         ConfigureVisualQuality(visual);
         using (var ctx = visual.RenderOpen())
         {
-            // 背景：采样任务栏颜色填充，避免 alpha 混合导致的残留（例如数字变短/对齐切换）
-            var backdropBrush = new SolidColorBrush(GetTaskbarBackdropColor());
-            backdropBrush.Freeze();
-            ctx.DrawRectangle(backdropBrush, null, new Rect(0, 0, _width, _height));
-
+            // 透明背景：不绘制底色（由 layered window 让任务栏背景透出）
             // 图标
             var iconSize = Math.Clamp(_contentIconSize, 16, Math.Max(16, _height));
             var icon = _iconRenderer.RenderWeatherOnlyIcon(now, settings, iconSize) as BitmapSource;
@@ -770,103 +819,6 @@ public sealed class NativeTaskbarWindow : IDisposable
         bmp.Render(visual);
         bmp.Freeze();
         return bmp;
-    }
-
-    private Color GetTaskbarBackdropColor()
-    {
-        if (_taskbarHwnd == IntPtr.Zero)
-        {
-            return SystemColors.ControlColor;
-        }
-
-        if (!GetClientRect(_taskbarHwnd, out var taskbarClientRect) || taskbarClientRect.Width <= 0 || taskbarClientRect.Height <= 0)
-        {
-            return SystemColors.ControlColor;
-        }
-
-        var hdc = GetDC(_taskbarHwnd);
-        if (hdc == IntPtr.Zero)
-        {
-            return SystemColors.ControlColor;
-        }
-
-        try
-        {
-            // 采样点选择：优先取窗口外侧（左右各一）+ 上中下三点，尽量避开托盘图标本身
-            var xs = new List<int>(capacity: 2);
-            var leftX = _lastX - 6;
-            var rightX = _lastX + _width + 6;
-
-            if (leftX >= 0 && leftX < taskbarClientRect.Width && leftX < _lastX)
-            {
-                xs.Add(leftX);
-            }
-            if (rightX >= 0 && rightX < taskbarClientRect.Width && rightX > _lastX + _width)
-            {
-                xs.Add(rightX);
-            }
-
-            if (xs.Count == 0)
-            {
-                // 保底：取任务栏右侧空白区域附近
-                var fallbackX = Math.Clamp(taskbarClientRect.Width - 10, 0, taskbarClientRect.Width - 1);
-                xs.Add(fallbackX);
-            }
-
-            var ys = new[]
-            {
-                2,
-                Math.Clamp(taskbarClientRect.Height / 2, 0, taskbarClientRect.Height - 1),
-                Math.Clamp(taskbarClientRect.Height - 3, 0, taskbarClientRect.Height - 1),
-            };
-
-            var samples = new List<Color>(capacity: xs.Count * ys.Length);
-            foreach (var x in xs)
-            {
-                foreach (var y in ys)
-                {
-                    var colorRef = GetPixel(hdc, x, y);
-                    if (colorRef == 0xFFFFFFFF)
-                    {
-                        continue;
-                    }
-
-                    var r = (byte)(colorRef & 0xFF);
-                    var g = (byte)((colorRef >> 8) & 0xFF);
-                    var b = (byte)((colorRef >> 16) & 0xFF);
-                    samples.Add(Color.FromRgb(r, g, b));
-                }
-            }
-
-            if (samples.Count == 0)
-            {
-                return SystemColors.ControlColor;
-            }
-
-            return MedianColor(samples);
-        }
-        catch
-        {
-            return SystemColors.ControlColor;
-        }
-        finally
-        {
-            ReleaseDC(_taskbarHwnd, hdc);
-        }
-    }
-
-    private static Color MedianColor(List<Color> colors)
-    {
-        if (colors.Count == 1)
-        {
-            return colors[0];
-        }
-
-        var rs = colors.Select(c => (int)c.R).OrderBy(v => v).ToArray();
-        var gs = colors.Select(c => (int)c.G).OrderBy(v => v).ToArray();
-        var bs = colors.Select(c => (int)c.B).OrderBy(v => v).ToArray();
-        var mid = colors.Count / 2;
-        return Color.FromRgb((byte)rs[mid], (byte)gs[mid], (byte)bs[mid]);
     }
 
     private static double GetPixelsPerDip()
@@ -1064,16 +1016,55 @@ public sealed class NativeTaskbarWindow : IDisposable
 
     private void DrawBitmapToHdc(IntPtr hdc, BitmapSource bmp, int x, int y)
     {
+        // obsolete: moved to UpdateLayeredVisual()
+    }
+
+    private void UpdateLayeredVisual()
+    {
+        var snapshot = _panelViewModel.Snapshot;
+        var settings = _panelViewModel.Settings;
+
+        BitmapSource bmp;
+        if (snapshot is null)
+        {
+            // 没有数据时，用“全透明帧”清空（避免残留）
+            var emptyVisual = new DrawingVisual();
+            ConfigureVisualQuality(emptyVisual);
+            using (emptyVisual.RenderOpen())
+            {
+            }
+
+            var empty = new RenderTargetBitmap(_width, _height, 96, 96, PixelFormats.Pbgra32);
+            empty.Render(emptyVisual);
+            empty.Freeze();
+            bmp = empty;
+        }
+        else
+        {
+            var rendered = RenderContent(snapshot.Now, settings);
+            if (rendered is not BitmapSource renderedBmp)
+            {
+                return;
+            }
+
+            bmp = renderedBmp;
+        }
+
         var width = bmp.PixelWidth;
         var height = bmp.PixelHeight;
-        var stride = width * 4;
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
 
+        var stride = width * 4;
         if (_bitmapBuffer == null || _bitmapBuffer.Length != height * stride)
+        {
             _bitmapBuffer = new byte[height * stride];
+        }
 
         bmp.CopyPixels(_bitmapBuffer, stride, 0);
 
-        // 创建 DIB
         var bmi = new BITMAPINFO
         {
             bmiHeader = new BITMAPINFOHEADER
@@ -1087,33 +1078,60 @@ public sealed class NativeTaskbarWindow : IDisposable
             }
         };
 
-        var hdcMem = CreateCompatibleDC(hdc);
-        var hBitmap = CreateDIBSection(hdcMem, ref bmi, 0, out var bits, IntPtr.Zero, 0);
-
-        if (hBitmap != IntPtr.Zero && bits != IntPtr.Zero)
+        var hdcScreen = GetDC(IntPtr.Zero);
+        if (hdcScreen == IntPtr.Zero)
         {
-            Marshal.Copy(_bitmapBuffer, 0, bits, _bitmapBuffer.Length);
-            var oldBmp = SelectObject(hdcMem, hBitmap);
-            var blend = new BLENDFUNCTION
-            {
-                BlendOp = AC_SRC_OVER,
-                BlendFlags = 0,
-                SourceConstantAlpha = 255,
-                AlphaFormat = AC_SRC_ALPHA,
-            };
-
-            // 使用源 alpha 混合到任务栏 DC，确保背景透明
-            if (!AlphaBlend(hdc, x, y, width, height, hdcMem, 0, 0, width, height, blend))
-            {
-                // AlphaBlend 失败则回退为非透明拷贝
-                BitBlt(hdc, x, y, width, height, hdcMem, 0, 0, SRCCOPY);
-            }
-
-            SelectObject(hdcMem, oldBmp);
-            DeleteObject(hBitmap);
+            return;
         }
 
-        DeleteDC(hdcMem);
+        try
+        {
+            var hdcMem = CreateCompatibleDC(hdcScreen);
+            var hBitmap = CreateDIBSection(hdcMem, ref bmi, 0, out var bits, IntPtr.Zero, 0);
+            if (hBitmap == IntPtr.Zero || bits == IntPtr.Zero)
+            {
+                DeleteDC(hdcMem);
+                return;
+            }
+
+            try
+            {
+                Marshal.Copy(_bitmapBuffer, 0, bits, _bitmapBuffer.Length);
+                var oldBmp = SelectObject(hdcMem, hBitmap);
+                try
+                {
+                    var ptDst = new POINT { x = _lastX == int.MinValue ? 0 : _lastX, y = _lastY == int.MinValue ? 0 : _lastY };
+                    var size = new SIZE { cx = width, cy = height };
+                    var ptSrc = new POINT { x = 0, y = 0 };
+                    var blend = new BLENDFUNCTION
+                    {
+                        BlendOp = AC_SRC_OVER,
+                        BlendFlags = 0,
+                        SourceConstantAlpha = 255,
+                        AlphaFormat = AC_SRC_ALPHA,
+                    };
+
+                    if (!UpdateLayeredWindow(_hwnd, hdcScreen, ref ptDst, ref size, hdcMem, ref ptSrc, 0, ref blend, ULW_ALPHA))
+                    {
+                        var err = Marshal.GetLastWin32Error();
+                        AppLogger.Info($"NativeTaskbarWindow: UpdateLayeredWindow failed, error={err}");
+                    }
+                }
+                finally
+                {
+                    SelectObject(hdcMem, oldBmp);
+                }
+            }
+            finally
+            {
+                DeleteObject(hBitmap);
+                DeleteDC(hdcMem);
+            }
+        }
+        finally
+        {
+            ReleaseDC(IntPtr.Zero, hdcScreen);
+        }
     }
 
     public void Dispose()
@@ -1123,6 +1141,8 @@ public sealed class NativeTaskbarWindow : IDisposable
 
         _updateTimer?.Dispose();
         _positionTimer?.Dispose();
+        _updateTimer = null;
+        _positionTimer = null;
 
         if (_hwnd != IntPtr.Zero)
         {
