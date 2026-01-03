@@ -130,6 +130,18 @@ public sealed class NativeTaskbarWindow : IDisposable
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWPOS
+    {
+        public IntPtr hwnd;
+        public IntPtr hwndInsertAfter;
+        public int x;
+        public int y;
+        public int cx;
+        public int cy;
+        public uint flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct PAINTSTRUCT
     {
         public IntPtr hdc;
@@ -201,6 +213,7 @@ public sealed class NativeTaskbarWindow : IDisposable
     private const uint WM_ERASEBKGND = 0x0014;
     private const uint WM_NCHITTEST = 0x0084;
     private const uint WM_MOUSEACTIVATE = 0x0021;
+    private const uint WM_WINDOWPOSCHANGING = 0x0046;
     private const uint WM_LBUTTONDOWN = 0x0201;
     private const uint WM_RBUTTONDOWN = 0x0204;
     private const uint WM_LBUTTONUP = 0x0202;
@@ -216,6 +229,7 @@ public sealed class NativeTaskbarWindow : IDisposable
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_SHOWWINDOW = 0x0040;
+    private const uint SWP_HIDEWINDOW = 0x0080;
 
     #endregion
 
@@ -614,9 +628,6 @@ public sealed class NativeTaskbarWindow : IDisposable
 
             if (!forceAdjust && screenX == _lastX && screenY == _lastY && targetHeight == _lastHeight && _width == _lastWidth)
             {
-                // Explorer 在显示任务栏预览缩略图/切换窗口时，可能改变 Z-order，导致嵌入窗口“消失”。
-                // 这里周期性地把窗口提升到非置顶窗口的顶部，避免需要高频“可见性抢救”。
-                SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
                 return;
             }
 
@@ -661,6 +672,38 @@ public sealed class NativeTaskbarWindow : IDisposable
 
             case WM_MOUSEACTIVATE:
                 return (IntPtr)MA_NOACTIVATE;
+
+            case WM_WINDOWPOSCHANGING:
+                // 任务栏显示预览缩略图/切换窗口时，Explorer 可能会对 owned window 做隐藏或调整 Z-order，导致“闪一下/消失”。
+                // 这里拦截并尽量保持可见 + 维持在非置顶窗口顶部，避免靠定时 SetWindowPos 保活造成体验抖动。
+                try
+                {
+                    var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+                    var changed = false;
+
+                    if ((pos.flags & SWP_HIDEWINDOW) != 0)
+                    {
+                        pos.flags &= ~SWP_HIDEWINDOW;
+                        changed = true;
+                    }
+
+                    if ((pos.flags & SWP_NOZORDER) == 0 && pos.hwndInsertAfter != IntPtr.Zero)
+                    {
+                        pos.hwndInsertAfter = IntPtr.Zero; // HWND_TOP
+                        changed = true;
+                    }
+
+                    if (changed)
+                    {
+                        Marshal.StructureToPtr(pos, lParam, false);
+                    }
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                break;
 
             case WM_LBUTTONDOWN:
             case WM_RBUTTONDOWN:
