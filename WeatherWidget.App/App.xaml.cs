@@ -58,6 +58,52 @@ public partial class App : Application
 
         var iconRenderer = new IconRenderer(new WeatherArtProvider());
 
+        void CreateEmbeddedModeWindows()
+        {
+            // Win11：优先使用真正嵌入任务栏的子窗口方案（参考 TrafficMonitor），避免悬浮置顶窗口被遮挡/需要高频“可见性抢救”。
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+            {
+                _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
+                if (_nativeTaskbarWindow.TryCreate())
+                {
+                    AppLogger.Info("NativeTaskbarWindow created for embedded mode (Win11)");
+                    return;
+                }
+
+                _nativeTaskbarWindow.Dispose();
+                _nativeTaskbarWindow = null;
+
+                _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
+                _embedWindow.Show();
+                AppLogger.Info("TaskbarEmbedWindow created for embedded mode (Win11 fallback)");
+                return;
+            }
+
+            // Win10/其它：优先尝试 DLL 分层窗口实现（透明/鼠标穿透）
+            _dllTaskbarEmbed = new DllTaskbarEmbed(panelViewModel, iconRenderer);
+            if (_dllTaskbarEmbed.TryCreate())
+            {
+                AppLogger.Info("DllTaskbarEmbed created for embedded mode");
+                return;
+            }
+
+            _dllTaskbarEmbed.Dispose();
+            _dllTaskbarEmbed = null;
+
+            _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
+            if (_nativeTaskbarWindow.TryCreate())
+            {
+                AppLogger.Info("NativeTaskbarWindow created for embedded mode (fallback 1)");
+                return;
+            }
+
+            _nativeTaskbarWindow.Dispose();
+            _nativeTaskbarWindow = null;
+            _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
+            _embedWindow.Show();
+            AppLogger.Info("TaskbarEmbedWindow created for embedded mode (fallback 2)");
+        }
+
         // 先创建并显示主窗口（天气图标），确保图标在左边
         var hostWindow = new MainWindow(panelWindow, panelViewModel, iconRenderer, settingsStore);
         MainWindow = hostWindow;
@@ -72,33 +118,7 @@ public partial class App : Application
         }
         else if (settings.IconDisplayMode == IconDisplayMode.Embedded)
         {
-            // 优先尝试 DLL 嵌入
-            _dllTaskbarEmbed = new DllTaskbarEmbed(panelViewModel, iconRenderer);
-            if (_dllTaskbarEmbed.TryCreate())
-            {
-                AppLogger.Info("DllTaskbarEmbed created for embedded mode");
-            }
-            else
-            {
-                // 回退到原生窗口
-                _dllTaskbarEmbed.Dispose();
-                _dllTaskbarEmbed = null;
-
-                _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
-                if (_nativeTaskbarWindow.TryCreate())
-                {
-                    AppLogger.Info("NativeTaskbarWindow created for embedded mode (fallback 1)");
-                }
-                else
-                {
-                    // 回退到 WPF 悬浮窗口
-                    _nativeTaskbarWindow.Dispose();
-                    _nativeTaskbarWindow = null;
-                    _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
-                    _embedWindow.Show();
-                    AppLogger.Info("TaskbarEmbedWindow created for embedded mode (fallback 2)");
-                }
-            }
+            CreateEmbeddedModeWindows();
         }
 
         // 监听图标模式变化
@@ -139,30 +159,7 @@ public partial class App : Application
             }
             else if (panelViewModel.IconDisplayMode == IconDisplayMode.Embedded)
             {
-                _dllTaskbarEmbed = new DllTaskbarEmbed(panelViewModel, iconRenderer);
-                if (_dllTaskbarEmbed.TryCreate())
-                {
-                    AppLogger.Info("DllTaskbarEmbed created dynamically");
-                }
-                else
-                {
-                    _dllTaskbarEmbed.Dispose();
-                    _dllTaskbarEmbed = null;
-
-                    _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
-                    if (_nativeTaskbarWindow.TryCreate())
-                    {
-                        AppLogger.Info("NativeTaskbarWindow created dynamically (fallback 1)");
-                    }
-                    else
-                    {
-                        _nativeTaskbarWindow.Dispose();
-                        _nativeTaskbarWindow = null;
-                        _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
-                        _embedWindow.Show();
-                        AppLogger.Info("TaskbarEmbedWindow created dynamically (fallback 2)");
-                    }
-                }
+                CreateEmbeddedModeWindows();
             }
         };
     }

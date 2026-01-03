@@ -60,6 +60,8 @@ public sealed class PanelViewModel : ObservableObject
     private string _extraBadgeColor;
     private ThemeMode _themeMode;
     private IconDisplayMode _iconDisplayMode;
+    private double _embeddedIconScale;
+    private double _embeddedOffsetX;
     private readonly DispatcherTimer _settingsSaveTimer;
     private bool _settingsSavePending;
 
@@ -136,6 +138,8 @@ public sealed class PanelViewModel : ObservableObject
         _extraBadgeColor = Settings.ExtraBadgeColor;
         _themeMode = Settings.ThemeMode;
         _iconDisplayMode = Settings.IconDisplayMode;
+        _embeddedIconScale = Settings.EmbeddedIconScale;
+        _embeddedOffsetX = Settings.EmbeddedOffsetX;
 
         _settingsSaveTimer = new DispatcherTimer
         {
@@ -722,6 +726,40 @@ public sealed class PanelViewModel : ObservableObject
     }
 
     public event EventHandler? IconDisplayModeChanged;
+
+    public double EmbeddedIconScale
+    {
+        get => _embeddedIconScale;
+        set
+        {
+            value = Math.Clamp(value, 0.5, 1.6);
+            if (!SetProperty(ref _embeddedIconScale, value))
+            {
+                return;
+            }
+
+            Settings = Settings with { EmbeddedIconScale = value };
+            ScheduleSettingsSave();
+            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public double EmbeddedOffsetX
+    {
+        get => _embeddedOffsetX;
+        set
+        {
+            value = Math.Clamp(value, -300, 300);
+            if (!SetProperty(ref _embeddedOffsetX, value))
+            {
+                return;
+            }
+
+            Settings = Settings with { EmbeddedOffsetX = value };
+            ScheduleSettingsSave();
+            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
     public bool IsBusy
     {

@@ -84,7 +84,9 @@ public sealed record Settings(
     ThemeMode ThemeMode = ThemeMode.Auto,
     IconDisplayMode IconDisplayMode = IconDisplayMode.Combined,
     bool AutoStart = false,
-    bool StartHidden = false)
+    bool StartHidden = false,
+    double EmbeddedIconScale = 1.0,
+    double EmbeddedOffsetX = 0)
 {
     public static Settings Default =>
         new(

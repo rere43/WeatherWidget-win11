@@ -65,6 +65,12 @@ public sealed class SettingsStore
         var cornerOffsetY = double.IsFinite(settings.CornerBadgeOffsetY) ? settings.CornerBadgeOffsetY : def.CornerBadgeOffsetY;
         var extraOffsetX = double.IsFinite(settings.ExtraBadgeOffsetX) ? settings.ExtraBadgeOffsetX : def.ExtraBadgeOffsetX;
         var extraOffsetY = double.IsFinite(settings.ExtraBadgeOffsetY) ? settings.ExtraBadgeOffsetY : def.ExtraBadgeOffsetY;
+        var embeddedIconScale = double.IsFinite(settings.EmbeddedIconScale) && settings.EmbeddedIconScale > 0
+            ? Math.Clamp(settings.EmbeddedIconScale, 0.5, 1.6)
+            : def.EmbeddedIconScale;
+        var embeddedOffsetX = double.IsFinite(settings.EmbeddedOffsetX)
+            ? Math.Clamp(settings.EmbeddedOffsetX, -300, 300)
+            : def.EmbeddedOffsetX;
 
         var tempScale = double.IsFinite(settings.TempBadgeFontScale) && settings.TempBadgeFontScale > 0
             ? Math.Clamp(settings.TempBadgeFontScale, 0.5, 3.0)
@@ -121,6 +127,8 @@ public sealed class SettingsStore
             TempBadgeColor = settings.TempBadgeColor,
             CornerBadgeColor = settings.CornerBadgeColor,
             ExtraBadgeColor = settings.ExtraBadgeColor,
+            EmbeddedIconScale = embeddedIconScale,
+            EmbeddedOffsetX = embeddedOffsetX,
         };
     }
 }

@@ -119,6 +119,36 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- 嵌入任务栏设置 -->
+                            <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="嵌入任务栏设置" Style="{StaticResource ValueText}" FontWeight="SemiBold" />
+                                    <TextBlock Text="提示：嵌入模式文字的字号/间隔复用下方角标配置（字号=FontScale，间隔=OffsetX）" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="48" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="图标大小" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="0.5" Maximum="1.6" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedIconScale, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedIconScale, StringFormat=x{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="48" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="左右偏移" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="-300" Maximum="300" TickFrequency="10" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedOffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedOffsetX, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
                             <!-- 样式设置 -->
                             <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12" Margin="0,10,0,0">
                                 <StackPanel>
