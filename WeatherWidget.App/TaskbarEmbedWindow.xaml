@@ -1,0 +1,16 @@
+<Window x:Class="WeatherWidget.App.TaskbarEmbedWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WeatherEmbed"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Width="120"
+        Height="40">
+    <Grid x:Name="ContentGrid">
+        <Image x:Name="ContentImage" Stretch="Uniform" />
+    </Grid>
+</Window>

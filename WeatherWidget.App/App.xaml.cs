@@ -15,6 +15,9 @@ public partial class App : Application
     private static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
 
     private SecondaryIconWindow? _secondaryIconWindow;
+    private TaskbarEmbedWindow? _embedWindow;
+    private NativeTaskbarWindow? _nativeTaskbarWindow;
+    private DllTaskbarEmbed? _dllTaskbarEmbed;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -67,26 +70,98 @@ public partial class App : Application
             _secondaryIconWindow.Show();
             AppLogger.Info("SecondaryIconWindow created for dual icon mode");
         }
+        else if (settings.IconDisplayMode == IconDisplayMode.Embedded)
+        {
+            // 优先尝试 DLL 嵌入
+            _dllTaskbarEmbed = new DllTaskbarEmbed(panelViewModel, iconRenderer);
+            if (_dllTaskbarEmbed.TryCreate())
+            {
+                AppLogger.Info("DllTaskbarEmbed created for embedded mode");
+            }
+            else
+            {
+                // 回退到原生窗口
+                _dllTaskbarEmbed.Dispose();
+                _dllTaskbarEmbed = null;
+
+                _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
+                if (_nativeTaskbarWindow.TryCreate())
+                {
+                    AppLogger.Info("NativeTaskbarWindow created for embedded mode (fallback 1)");
+                }
+                else
+                {
+                    // 回退到 WPF 悬浮窗口
+                    _nativeTaskbarWindow.Dispose();
+                    _nativeTaskbarWindow = null;
+                    _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
+                    _embedWindow.Show();
+                    AppLogger.Info("TaskbarEmbedWindow created for embedded mode (fallback 2)");
+                }
+            }
+        }
 
         // 监听图标模式变化
         panelViewModel.IconDisplayModeChanged += (_, _) =>
         {
+            // 先关闭现有的副窗口
+            if (_secondaryIconWindow != null)
+            {
+                _secondaryIconWindow.Close();
+                _secondaryIconWindow = null;
+                AppLogger.Info("SecondaryIconWindow closed");
+            }
+            if (_embedWindow != null)
+            {
+                _embedWindow.Close();
+                _embedWindow = null;
+                AppLogger.Info("TaskbarEmbedWindow closed");
+            }
+            if (_nativeTaskbarWindow != null)
+            {
+                _nativeTaskbarWindow.Dispose();
+                _nativeTaskbarWindow = null;
+                AppLogger.Info("NativeTaskbarWindow closed");
+            }
+            if (_dllTaskbarEmbed != null)
+            {
+                _dllTaskbarEmbed.Dispose();
+                _dllTaskbarEmbed = null;
+                AppLogger.Info("DllTaskbarEmbed closed");
+            }
+
+            // 根据新模式创建对应窗口
             if (panelViewModel.IconDisplayMode == IconDisplayMode.Separate)
             {
-                if (_secondaryIconWindow == null)
-                {
-                    _secondaryIconWindow = new SecondaryIconWindow(panelViewModel, iconRenderer);
-                    _secondaryIconWindow.Show();
-                    AppLogger.Info("SecondaryIconWindow created dynamically");
-                }
+                _secondaryIconWindow = new SecondaryIconWindow(panelViewModel, iconRenderer);
+                _secondaryIconWindow.Show();
+                AppLogger.Info("SecondaryIconWindow created dynamically");
             }
-            else
+            else if (panelViewModel.IconDisplayMode == IconDisplayMode.Embedded)
             {
-                if (_secondaryIconWindow != null)
+                _dllTaskbarEmbed = new DllTaskbarEmbed(panelViewModel, iconRenderer);
+                if (_dllTaskbarEmbed.TryCreate())
                 {
-                    _secondaryIconWindow.Close();
-                    _secondaryIconWindow = null;
-                    AppLogger.Info("SecondaryIconWindow closed");
+                    AppLogger.Info("DllTaskbarEmbed created dynamically");
+                }
+                else
+                {
+                    _dllTaskbarEmbed.Dispose();
+                    _dllTaskbarEmbed = null;
+
+                    _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
+                    if (_nativeTaskbarWindow.TryCreate())
+                    {
+                        AppLogger.Info("NativeTaskbarWindow created dynamically (fallback 1)");
+                    }
+                    else
+                    {
+                        _nativeTaskbarWindow.Dispose();
+                        _nativeTaskbarWindow = null;
+                        _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
+                        _embedWindow.Show();
+                        AppLogger.Info("TaskbarEmbedWindow created dynamically (fallback 2)");
+                    }
                 }
             }
         };

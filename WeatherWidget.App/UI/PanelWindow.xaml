@@ -186,6 +186,7 @@
                                         <ComboBox Grid.Column="1" SelectedValue="{Binding IconDisplayMode}" SelectedValuePath="Tag">
                                             <ComboBoxItem Content="合并（单图标）" Tag="{x:Static models:IconDisplayMode.Combined}" />
                                             <ComboBoxItem Content="分离（双图标）" Tag="{x:Static models:IconDisplayMode.Separate}" />
+                                            <ComboBoxItem Content="嵌入任务栏" Tag="{x:Static models:IconDisplayMode.Embedded}" />
                                         </ComboBox>
                                     </Grid>
                                 </StackPanel>

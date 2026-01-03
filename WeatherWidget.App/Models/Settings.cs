@@ -46,6 +46,7 @@ public enum IconDisplayMode
 {
     Combined = 0,   // 单图标：天气图标+温度角标（默认）
     Separate = 1,   // 双图标：一个显示天气图标，一个显示温度数字
+    Embedded = 2,   // 嵌入任务栏：类似 TrafficMonitor 的方式
 }
 
 public sealed record Settings(

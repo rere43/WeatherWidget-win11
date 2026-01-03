@@ -21,3 +21,5 @@ Desktop.ini
 
 # Local reference downloads (not required to build)
 /WeatherWidget.App/参考/
+/_refs/
+/TaskbarEmbedDll/build/
