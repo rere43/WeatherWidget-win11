@@ -302,8 +302,21 @@ public partial class MainWindow : Window
         try
         {
             var settings = _panelViewModel.Settings;
-            var big = _iconRenderer.RenderTaskbarIcon(snapshot.Now, settings, size: 64);
-            var small = _iconRenderer.RenderTaskbarIcon(snapshot.Now, settings, size: 32);
+
+            // 根据图标模式选择渲染方式
+            ImageSource big, small;
+            if (settings.IconDisplayMode == Models.IconDisplayMode.Separate)
+            {
+                // 双图标模式：主窗口只显示天气图标
+                big = _iconRenderer.RenderWeatherOnlyIcon(snapshot.Now, settings, size: 64);
+                small = _iconRenderer.RenderWeatherOnlyIcon(snapshot.Now, settings, size: 32);
+            }
+            else
+            {
+                // 单图标模式：显示完整图标（天气+角标）
+                big = _iconRenderer.RenderTaskbarIcon(snapshot.Now, settings, size: 64);
+                small = _iconRenderer.RenderTaskbarIcon(snapshot.Now, settings, size: 32);
+            }
 
             if (big is System.Windows.Media.Imaging.BitmapSource bigBmp &&
                 small is System.Windows.Media.Imaging.BitmapSource smallBmp &&

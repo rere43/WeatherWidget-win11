@@ -157,8 +157,35 @@
                                         <TextBlock Text="主题" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
                                         <ComboBox Grid.Column="1" SelectedValue="{Binding ThemeMode}" SelectedValuePath="Tag">
                                             <ComboBoxItem Content="跟随日出日落" Tag="{x:Static models:ThemeMode.Auto}" />
-                                            <ComboBoxItem Content="始终浅色" Tag="{x:Static models:ThemeMode.Light}" />
-                                            <ComboBoxItem Content="始终深色" Tag="{x:Static models:ThemeMode.Dark}" />
+                                            <ComboBoxItem Content="浅色" Tag="{x:Static models:ThemeMode.Light}" />
+                                            <ComboBoxItem Content="深色" Tag="{x:Static models:ThemeMode.Dark}" />
+                                            <ComboBoxItem Content="海洋" Tag="{x:Static models:ThemeMode.Ocean}" />
+                                            <ComboBoxItem Content="森林" Tag="{x:Static models:ThemeMode.Forest}" />
+                                            <ComboBoxItem Content="日落" Tag="{x:Static models:ThemeMode.Sunset}" />
+                                            <ComboBoxItem Content="薰衣草" Tag="{x:Static models:ThemeMode.Lavender}" />
+                                            <ComboBoxItem Content="玫瑰" Tag="{x:Static models:ThemeMode.Rose}" />
+                                            <ComboBoxItem Content="薄荷" Tag="{x:Static models:ThemeMode.Mint}" />
+                                            <ComboBoxItem Content="摩卡" Tag="{x:Static models:ThemeMode.Mocha}" />
+                                            <ComboBoxItem Content="石板" Tag="{x:Static models:ThemeMode.Slate}" />
+                                            <ComboBoxItem Content="樱桃" Tag="{x:Static models:ThemeMode.Cherry}" />
+                                            <ComboBoxItem Content="琥珀" Tag="{x:Static models:ThemeMode.Amber}" />
+                                            <ComboBoxItem Content="黑曜石" Tag="{x:Static models:ThemeMode.Obsidian}" />
+                                            <ComboBoxItem Content="炭黑" Tag="{x:Static models:ThemeMode.Charcoal}" />
+                                            <ComboBoxItem Content="午夜" Tag="{x:Static models:ThemeMode.Midnight}" />
+                                            <ComboBoxItem Content="雪白" Tag="{x:Static models:ThemeMode.Snow}" />
+                                            <ComboBoxItem Content="象牙" Tag="{x:Static models:ThemeMode.Ivory}" />
+                                            <ComboBoxItem Content="珍珠" Tag="{x:Static models:ThemeMode.Pearl}" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="60" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="图标模式" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="1" SelectedValue="{Binding IconDisplayMode}" SelectedValuePath="Tag">
+                                            <ComboBoxItem Content="合并（单图标）" Tag="{x:Static models:IconDisplayMode.Combined}" />
+                                            <ComboBoxItem Content="分离（双图标）" Tag="{x:Static models:IconDisplayMode.Separate}" />
                                         </ComboBox>
                                     </Grid>
                                 </StackPanel>

@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
+using WeatherWidget.App.Models;
 using WeatherWidget.App.Services;
 using WeatherWidget.App.UI;
 using WeatherWidget.App.ViewModels;
@@ -12,6 +13,8 @@ public partial class App : Application
 {
     [DllImport("shell32.dll", SetLastError = true)]
     private static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
+
+    private SecondaryIconWindow? _secondaryIconWindow;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -51,9 +54,41 @@ public partial class App : Application
         panelViewModel.ThemeModeChanged += (_, _) => themeManager.ApplyTheme(panelViewModel.ThemeMode);
 
         var iconRenderer = new IconRenderer(new WeatherArtProvider());
-        var hostWindow = new MainWindow(panelWindow, panelViewModel, iconRenderer, settingsStore);
 
+        // 先创建并显示主窗口（天气图标），确保图标在左边
+        var hostWindow = new MainWindow(panelWindow, panelViewModel, iconRenderer, settingsStore);
         MainWindow = hostWindow;
         hostWindow.Show();
+
+        // 如果启用双图标模式，创建第二个图标窗口（文字在右边）
+        if (settings.IconDisplayMode == IconDisplayMode.Separate)
+        {
+            _secondaryIconWindow = new SecondaryIconWindow(panelViewModel, iconRenderer);
+            _secondaryIconWindow.Show();
+            AppLogger.Info("SecondaryIconWindow created for dual icon mode");
+        }
+
+        // 监听图标模式变化
+        panelViewModel.IconDisplayModeChanged += (_, _) =>
+        {
+            if (panelViewModel.IconDisplayMode == IconDisplayMode.Separate)
+            {
+                if (_secondaryIconWindow == null)
+                {
+                    _secondaryIconWindow = new SecondaryIconWindow(panelViewModel, iconRenderer);
+                    _secondaryIconWindow.Show();
+                    AppLogger.Info("SecondaryIconWindow created dynamically");
+                }
+            }
+            else
+            {
+                if (_secondaryIconWindow != null)
+                {
+                    _secondaryIconWindow.Close();
+                    _secondaryIconWindow = null;
+                    AppLogger.Info("SecondaryIconWindow closed");
+                }
+            }
+        };
     }
 }

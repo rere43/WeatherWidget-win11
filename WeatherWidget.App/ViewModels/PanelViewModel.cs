@@ -59,6 +59,7 @@ public sealed class PanelViewModel : ObservableObject
     private string _cornerBadgeColor;
     private string _extraBadgeColor;
     private ThemeMode _themeMode;
+    private IconDisplayMode _iconDisplayMode;
     private readonly DispatcherTimer _settingsSaveTimer;
     private bool _settingsSavePending;
 
@@ -134,6 +135,7 @@ public sealed class PanelViewModel : ObservableObject
         _cornerBadgeColor = Settings.CornerBadgeColor;
         _extraBadgeColor = Settings.ExtraBadgeColor;
         _themeMode = Settings.ThemeMode;
+        _iconDisplayMode = Settings.IconDisplayMode;
 
         _settingsSaveTimer = new DispatcherTimer
         {
@@ -702,6 +704,25 @@ public sealed class PanelViewModel : ObservableObject
 
     public event EventHandler? ThemeModeChanged;
 
+    public IconDisplayMode IconDisplayMode
+    {
+        get => _iconDisplayMode;
+        set
+        {
+            if (!SetProperty(ref _iconDisplayMode, value))
+            {
+                return;
+            }
+
+            Settings = Settings with { IconDisplayMode = value };
+            ScheduleSettingsSave();
+            IconDisplayModeChanged?.Invoke(this, EventArgs.Empty);
+            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public event EventHandler? IconDisplayModeChanged;
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -1021,6 +1042,7 @@ public sealed class PanelViewModel : ObservableObject
                 AutoStart = AutoStart,
                 StartHidden = StartHidden,
                 ThemeMode = ThemeMode,
+                IconDisplayMode = IconDisplayMode,
             };
 
             _settingsStore.Save(Settings);
@@ -1066,6 +1088,7 @@ public sealed class PanelViewModel : ObservableObject
                 AutoStart = AutoStart,
                 StartHidden = StartHidden,
                 ThemeMode = ThemeMode,
+                IconDisplayMode = IconDisplayMode,
             };
 
             _settingsStore.Save(Settings);

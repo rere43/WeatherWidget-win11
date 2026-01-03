@@ -115,6 +115,125 @@ public sealed class IconRenderer
         return bmp;
     }
 
+    /// <summary>
+    /// 渲染纯天气图标（无角标），用于双图标模式
+    /// </summary>
+    public ImageSource RenderWeatherOnlyIcon(WeatherNow now, Settings settings, int size = 64)
+    {
+        size = Math.Clamp(size, 16, 512);
+        var baseArt = _artProvider.RenderBaseArt(now.WeatherCode, size);
+
+        var visual = new DrawingVisual();
+        using (var ctx = visual.RenderOpen())
+        {
+            if (settings.IconBackgroundEnabled)
+            {
+                var bgFill = new SolidColorBrush(Color.FromRgb(0xF3, 0xF8, 0xFF));
+                var bgStroke = new Pen(new SolidColorBrush(Color.FromRgb(0xD9, 0xE6, 0xF7)), Math.Max(1, size * 0.03));
+                ctx.DrawRoundedRectangle(bgFill, bgStroke, new Rect(0, 0, size, size), size * 0.22, size * 0.22);
+            }
+
+            var offsetScale = size / 64.0;
+            var iconDx = settings.IconOffsetX * offsetScale;
+            var iconDy = settings.IconOffsetY * offsetScale;
+            ctx.DrawImage(baseArt, new Rect(iconDx, iconDy, size, size));
+        }
+
+        var bmp = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(visual);
+        bmp.Freeze();
+        return bmp;
+    }
+
+    /// <summary>
+    /// 渲染纯温度数字图标（无天气图标），用于双图标模式
+    /// 使用现有角标配置（字体、颜色、描边等），无背景，支持多个角标
+    /// </summary>
+    public ImageSource RenderTemperatureOnlyIcon(WeatherNow now, Settings settings, int size = 64)
+    {
+        size = Math.Clamp(size, 16, 512);
+
+        var fontFamily = GetFontFamily(settings.BadgeFontFamily);
+        var visual = new DrawingVisual();
+
+        using (var ctx = visual.RenderOpen())
+        {
+            // 温度角标
+            var tempValue = $"{Math.Round(now.TemperatureC):0}";
+            var tempText = ApplyTemplate(settings.TempBadgeFormat, tempValue, "{value}°");
+            DrawCornerLabel(
+                ctx,
+                tempText,
+                position: settings.TempBadgePosition,
+                size: size,
+                offsetX: settings.TempBadgeOffsetX,
+                offsetY: settings.TempBadgeOffsetY,
+                fontScale: settings.TempBadgeFontScale,
+                showBackground: settings.BadgeBackgroundEnabled,
+                strokeWidth: settings.BadgeStrokeWidth,
+                fontFamily: fontFamily,
+                fontColor: ParseColor(settings.TempBadgeColor));
+
+            // 副角标（UV/湿度）
+            var cornerText = settings.IconCornerMetric switch
+            {
+                IconCornerMetric.UvIndex => ApplyTemplate(
+                    settings.CornerUvFormat,
+                    now.UvIndex is null ? "—" : $"{Math.Round(now.UvIndex.Value):0}",
+                    "UV{value}"),
+                IconCornerMetric.Humidity => ApplyTemplate(
+                    settings.CornerHumidityFormat,
+                    now.RelativeHumidityPercent is null ? "—" : $"{now.RelativeHumidityPercent.Value}",
+                    "{value}%"),
+                _ => null,
+            };
+
+            if (!string.IsNullOrWhiteSpace(cornerText))
+            {
+                DrawCornerLabel(
+                    ctx,
+                    cornerText,
+                    position: settings.CornerBadgePosition,
+                    size: size,
+                    small: true,
+                    offsetX: settings.CornerBadgeOffsetX,
+                    offsetY: settings.CornerBadgeOffsetY,
+                    fontScale: settings.CornerBadgeFontScale,
+                    showBackground: settings.BadgeBackgroundEnabled,
+                    strokeWidth: settings.BadgeStrokeWidth,
+                    fontFamily: fontFamily,
+                    fontColor: ParseColor(settings.CornerBadgeColor));
+            }
+
+            // 额外角标
+            if (settings.ExtraBadgeEnabled && !string.IsNullOrWhiteSpace(settings.ExtraBadgeFormat))
+            {
+                var extraText = ApplyMultiTemplate(settings.ExtraBadgeFormat, now);
+                if (!string.IsNullOrWhiteSpace(extraText))
+                {
+                    DrawCornerLabel(
+                        ctx,
+                        extraText,
+                        position: settings.ExtraBadgePosition,
+                        size: size,
+                        small: true,
+                        offsetX: settings.ExtraBadgeOffsetX,
+                        offsetY: settings.ExtraBadgeOffsetY,
+                        fontScale: settings.ExtraBadgeFontScale,
+                        showBackground: settings.BadgeBackgroundEnabled,
+                        strokeWidth: settings.BadgeStrokeWidth,
+                        fontFamily: fontFamily,
+                        fontColor: ParseColor(settings.ExtraBadgeColor));
+                }
+            }
+        }
+
+        var bmp = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(visual);
+        bmp.Freeze();
+        return bmp;
+    }
+
     public ImageSource RenderPreviewBitmap(WeatherSnapshot snapshot, Settings settings, bool isDarkTheme)
     {
         const int width = 320;
