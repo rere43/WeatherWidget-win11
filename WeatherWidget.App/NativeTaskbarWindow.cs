@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
@@ -62,6 +63,12 @@ public sealed class NativeTaskbarWindow : IDisposable
     [DllImport("user32.dll")]
     private static extern bool EndPaint(IntPtr hWnd, ref PAINTSTRUCT lpPaint);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
     [DllImport("gdi32.dll")]
     private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
 
@@ -76,6 +83,9 @@ public sealed class NativeTaskbarWindow : IDisposable
 
     [DllImport("gdi32.dll")]
     private static extern bool BitBlt(IntPtr hdc, int x, int y, int cx, int cy, IntPtr hdcSrc, int x1, int y1, uint rop);
+
+    [DllImport("gdi32.dll")]
+    private static extern uint GetPixel(IntPtr hdc, int nXPos, int nYPos);
 
     [DllImport("msimg32.dll", SetLastError = true)]
     private static extern bool AlphaBlend(
@@ -628,7 +638,10 @@ public sealed class NativeTaskbarWindow : IDisposable
         ConfigureVisualQuality(visual);
         using (var ctx = visual.RenderOpen())
         {
-            // 透明背景：不绘制底色（AlphaBlend 会保留任务栏背景）
+            // 背景：采样任务栏颜色填充，避免 alpha 混合导致的残留（例如数字变短/对齐切换）
+            var backdropBrush = new SolidColorBrush(GetTaskbarBackdropColor());
+            backdropBrush.Freeze();
+            ctx.DrawRectangle(backdropBrush, null, new Rect(0, 0, _width, _height));
 
             // 图标
             var iconSize = Math.Clamp(_contentIconSize, 16, Math.Max(16, _height));
@@ -757,6 +770,103 @@ public sealed class NativeTaskbarWindow : IDisposable
         bmp.Render(visual);
         bmp.Freeze();
         return bmp;
+    }
+
+    private Color GetTaskbarBackdropColor()
+    {
+        if (_taskbarHwnd == IntPtr.Zero)
+        {
+            return SystemColors.ControlColor;
+        }
+
+        if (!GetClientRect(_taskbarHwnd, out var taskbarClientRect) || taskbarClientRect.Width <= 0 || taskbarClientRect.Height <= 0)
+        {
+            return SystemColors.ControlColor;
+        }
+
+        var hdc = GetDC(_taskbarHwnd);
+        if (hdc == IntPtr.Zero)
+        {
+            return SystemColors.ControlColor;
+        }
+
+        try
+        {
+            // 采样点选择：优先取窗口外侧（左右各一）+ 上中下三点，尽量避开托盘图标本身
+            var xs = new List<int>(capacity: 2);
+            var leftX = _lastX - 6;
+            var rightX = _lastX + _width + 6;
+
+            if (leftX >= 0 && leftX < taskbarClientRect.Width && leftX < _lastX)
+            {
+                xs.Add(leftX);
+            }
+            if (rightX >= 0 && rightX < taskbarClientRect.Width && rightX > _lastX + _width)
+            {
+                xs.Add(rightX);
+            }
+
+            if (xs.Count == 0)
+            {
+                // 保底：取任务栏右侧空白区域附近
+                var fallbackX = Math.Clamp(taskbarClientRect.Width - 10, 0, taskbarClientRect.Width - 1);
+                xs.Add(fallbackX);
+            }
+
+            var ys = new[]
+            {
+                2,
+                Math.Clamp(taskbarClientRect.Height / 2, 0, taskbarClientRect.Height - 1),
+                Math.Clamp(taskbarClientRect.Height - 3, 0, taskbarClientRect.Height - 1),
+            };
+
+            var samples = new List<Color>(capacity: xs.Count * ys.Length);
+            foreach (var x in xs)
+            {
+                foreach (var y in ys)
+                {
+                    var colorRef = GetPixel(hdc, x, y);
+                    if (colorRef == 0xFFFFFFFF)
+                    {
+                        continue;
+                    }
+
+                    var r = (byte)(colorRef & 0xFF);
+                    var g = (byte)((colorRef >> 8) & 0xFF);
+                    var b = (byte)((colorRef >> 16) & 0xFF);
+                    samples.Add(Color.FromRgb(r, g, b));
+                }
+            }
+
+            if (samples.Count == 0)
+            {
+                return SystemColors.ControlColor;
+            }
+
+            return MedianColor(samples);
+        }
+        catch
+        {
+            return SystemColors.ControlColor;
+        }
+        finally
+        {
+            ReleaseDC(_taskbarHwnd, hdc);
+        }
+    }
+
+    private static Color MedianColor(List<Color> colors)
+    {
+        if (colors.Count == 1)
+        {
+            return colors[0];
+        }
+
+        var rs = colors.Select(c => (int)c.R).OrderBy(v => v).ToArray();
+        var gs = colors.Select(c => (int)c.G).OrderBy(v => v).ToArray();
+        var bs = colors.Select(c => (int)c.B).OrderBy(v => v).ToArray();
+        var mid = colors.Count / 2;
+        return Color.FromRgb((byte)rs[mid], (byte)gs[mid], (byte)bs[mid]);
     }
 
     private static double GetPixelsPerDip()
