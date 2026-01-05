@@ -16,6 +16,8 @@ public partial class PanelWindow : Window
     private bool _logPanelVisible;
     private INotifyPropertyChanged? _vmNotify;
 
+    public bool AutoHideOnDeactivated { get; set; } = true;
+
     public PanelWindow()
     {
         InitializeComponent();
@@ -27,6 +29,11 @@ public partial class PanelWindow : Window
     private void OnDeactivated(object? sender, EventArgs e)
     {
         // 窗口失去焦点时自动隐藏
+        if (!AutoHideOnDeactivated)
+        {
+            return;
+        }
+
         Hide();
     }
 

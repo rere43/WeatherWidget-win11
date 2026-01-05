@@ -97,6 +97,7 @@ public sealed class DllTaskbarEmbed : IDisposable
     private Action<bool>? _onHoverChanged;  // 悬停状态变化回调
 
     public bool IsCreated => _hwnd != IntPtr.Zero;
+    public IntPtr Handle => _hwnd;
 
     public DllTaskbarEmbed(PanelViewModel panelViewModel, IconRenderer iconRenderer, Action<bool>? onHoverChanged = null)
     {

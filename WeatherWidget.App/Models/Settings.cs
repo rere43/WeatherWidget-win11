@@ -105,6 +105,8 @@ public sealed record Settings(
     double EmbeddedOffsetX = 0,
     // 嵌入模式：UV条与天气图标间距（历史版本复用 TempBadgeOffsetY）
     double EmbeddedUvToWeatherGap = double.NaN,
+    // 悬停触发面板延迟（ms）
+    int EmbeddedHoverDelayMs = 500,
     EmbeddedTextLayout EmbeddedTextLayout = EmbeddedTextLayout.TwoLines,
     EmbeddedTextAlignment EmbeddedTextAlignment = EmbeddedTextAlignment.Left)
 {
@@ -115,5 +117,6 @@ public sealed record Settings(
             Longitude: 121.4737,
             IconCornerMetric: IconCornerMetric.UvIndex,
             RefreshInterval: TimeSpan.FromMinutes(10),
-            EmbeddedUvToWeatherGap: 4);
+            EmbeddedUvToWeatherGap: 4,
+            EmbeddedHoverDelayMs: 500);
 }

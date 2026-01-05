@@ -63,6 +63,7 @@ public sealed class PanelViewModel : ObservableObject
     private double _embeddedIconScale;
     private double _embeddedOffsetX;
     private double _embeddedUvToWeatherGap;
+    private int _embeddedHoverDelayMs;
     private EmbeddedTextLayout _embeddedTextLayout;
     private EmbeddedTextAlignment _embeddedTextAlignment;
     private readonly DispatcherTimer _settingsSaveTimer;
@@ -144,6 +145,7 @@ public sealed class PanelViewModel : ObservableObject
         _embeddedIconScale = Settings.EmbeddedIconScale;
         _embeddedOffsetX = Settings.EmbeddedOffsetX;
         _embeddedUvToWeatherGap = Settings.EmbeddedUvToWeatherGap;
+        _embeddedHoverDelayMs = Settings.EmbeddedHoverDelayMs;
         _embeddedTextLayout = Settings.EmbeddedTextLayout;
         _embeddedTextAlignment = Settings.EmbeddedTextAlignment;
 
@@ -781,6 +783,22 @@ public sealed class PanelViewModel : ObservableObject
             Settings = Settings with { EmbeddedUvToWeatherGap = value };
             ScheduleSettingsSave();
             WeatherUpdated?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public int EmbeddedHoverDelayMs
+    {
+        get => _embeddedHoverDelayMs;
+        set
+        {
+            value = Math.Clamp(value, 0, 5000);
+            if (!SetProperty(ref _embeddedHoverDelayMs, value))
+            {
+                return;
+            }
+
+            Settings = Settings with { EmbeddedHoverDelayMs = value };
+            ScheduleSettingsSave();
         }
     }
 

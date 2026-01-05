@@ -63,6 +63,8 @@ public sealed class NativeTaskbarWindow : IDisposable
 
     public NativeTaskbarWindow(PanelViewModel panelViewModel, IconRenderer iconRenderer, Action<bool>? onHoverChanged = null) { _panelViewModel = panelViewModel; _iconRenderer = iconRenderer; _onHoverChanged = onHoverChanged; }
 
+    public IntPtr Handle => _hwnd;
+
     public bool TryCreate()
     {
         try

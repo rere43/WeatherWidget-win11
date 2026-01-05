@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using WeatherWidget.App.Services;
 using WeatherWidget.App.Models;
 using WeatherWidget.App.UI;
@@ -82,6 +83,16 @@ public partial class App : Application
     private TaskbarEmbedWindow? _embedWindow;
     private NativeTaskbarWindow? _nativeTaskbarWindow;
     private DllTaskbarEmbed? _dllTaskbarEmbed;
+    private IntPtr _embeddedTriggerHwnd;
+
+    private enum PanelOpenSource
+    {
+        None = 0,
+        Hover = 1,
+        Click = 2,
+    }
+
+    private PanelOpenSource _panelOpenSource;
     private GlobalMouseHook? _globalMouseHook;
     private IntPtr _foregroundEventHook;
     private WinEventDelegate? _foregroundEventProc;
@@ -132,6 +143,11 @@ public partial class App : Application
                 return;
             }
 
+            if (_panelOpenSource == PanelOpenSource.Click)
+            {
+                return;
+            }
+
             // 前台切到面板自身不处理
             if (_panelHwnd != IntPtr.Zero && hwnd == _panelHwnd)
             {
@@ -159,10 +175,86 @@ public partial class App : Application
             });
         };
 
+        void UpdateGlobalMouseHookState()
+        {
+            if (_globalMouseHook is null)
+            {
+                return;
+            }
+
+            var shouldRun = panelWindow.IsVisible || panelViewModel.IconDisplayMode == IconDisplayMode.Embedded;
+            try
+            {
+                if (shouldRun)
+                {
+                    _globalMouseHook.Start();
+                }
+                else
+                {
+                    _globalMouseHook.Stop();
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Info($"GlobalMouseHook failed: {ex.Message}");
+            }
+        }
+
         // 点击面板外部时自动隐藏（解决悬停触发后未激活导致 Deactivated 不触发的问题）
         _globalMouseHook.MouseDown += (_, pt) =>
         {
-            if (!panelWindow.IsVisible)
+            // 1) 嵌入模式：单击触发区域切换/固定面板（不拦截系统点击，只做观察）
+            if (panelViewModel.IconDisplayMode == IconDisplayMode.Embedded &&
+                _embeddedTriggerHwnd != IntPtr.Zero &&
+                GetWindowRect(_embeddedTriggerHwnd, out var triggerRc))
+            {
+                var isInTrigger = pt.X >= triggerRc.Left && pt.X <= triggerRc.Right && pt.Y >= triggerRc.Top && pt.Y <= triggerRc.Bottom;
+                if (isInTrigger)
+                {
+                    panelWindow.Dispatcher.BeginInvoke(() =>
+                    {
+                        if (panelWindow.IsVisible)
+                        {
+                            if (_panelOpenSource == PanelOpenSource.Click)
+                            {
+                                panelWindow.Hide();
+                                return;
+                            }
+
+                            // 悬停打开 -> 单击固定（不自动隐藏）
+                            _panelOpenSource = PanelOpenSource.Click;
+                            panelWindow.AutoHideOnDeactivated = false;
+                            panelWindow.ShowActivated = true;
+                            panelWindow.Activate();
+
+                            var hwnd = new WindowInteropHelper(panelWindow).Handle;
+                            if (hwnd != IntPtr.Zero)
+                            {
+                                ForceForegroundWindow(hwnd);
+                            }
+                            return;
+                        }
+
+                        _panelOpenSource = PanelOpenSource.Click;
+                        panelWindow.AutoHideOnDeactivated = false;
+                        panelWindow.ShowActivated = true;
+
+                        TryPositionPanelToCursor();
+                        panelWindow.Show();
+                        panelWindow.Activate();
+
+                        var hwnd2 = new WindowInteropHelper(panelWindow).Handle;
+                        if (hwnd2 != IntPtr.Zero)
+                        {
+                            ForceForegroundWindow(hwnd2);
+                        }
+                    });
+                    return;
+                }
+            }
+
+            // 2) 非固定状态：点击面板外部自动隐藏
+            if (!panelWindow.IsVisible || _panelOpenSource == PanelOpenSource.Click)
             {
                 return;
             }
@@ -181,7 +273,7 @@ public partial class App : Application
 
             panelWindow.Dispatcher.BeginInvoke(() =>
             {
-                if (panelWindow.IsVisible)
+                if (panelWindow.IsVisible && _panelOpenSource != PanelOpenSource.Click)
                 {
                     panelWindow.Hide();
                 }
@@ -197,9 +289,11 @@ public partial class App : Application
 
             try
             {
+                UpdateGlobalMouseHookState();
+
                 if (panelWindow.IsVisible)
                 {
-                    _globalMouseHook.Start();
+                    panelWindow.AutoHideOnDeactivated = _panelOpenSource != PanelOpenSource.Click;
 
                     _panelHwnd = new WindowInteropHelper(panelWindow).Handle;
                     _panelShownForegroundHwnd = GetForegroundWindow();
@@ -222,7 +316,7 @@ public partial class App : Application
                 }
                 else
                 {
-                    _globalMouseHook.Stop();
+                    panelWindow.AutoHideOnDeactivated = true;
 
                     if (_foregroundEventHook != IntPtr.Zero)
                     {
@@ -232,6 +326,7 @@ public partial class App : Application
 
                     _panelShownForegroundHwnd = IntPtr.Zero;
                     _panelHwnd = IntPtr.Zero;
+                    _panelOpenSource = PanelOpenSource.None;
                 }
             }
             catch (Exception ex)
@@ -249,40 +344,92 @@ public partial class App : Application
 
         var iconRenderer = new IconRenderer(new WeatherArtProvider());
 
+        void TryPositionPanelToCursor()
+        {
+            try
+            {
+                if (GetCursorPos(out var pt))
+                {
+                    var dpi = VisualTreeHelper.GetDpi(MainWindow ?? panelWindow);
+                    var anchor = TaskbarAnchor.GetTaskbarAnchorNearPointPx(
+                        panelWindow.Width,
+                        panelWindow.Height,
+                        dpi.DpiScaleX,
+                        dpi.DpiScaleY,
+                        pt.X,
+                        pt.Y);
+                    panelWindow.Left = anchor.Left;
+                    panelWindow.Top = anchor.Top;
+                }
+            }
+            catch { }
+        }
+
         void CreateEmbeddedModeWindows()
         {
-            // 悬停回调：显示面板并确保获得焦点
+            _embeddedTriggerHwnd = IntPtr.Zero;
+
+            var isHoveringNow = false;
+            var hoverDelayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+
+            void ShowPanelByHover()
+            {
+                if (!isHoveringNow)
+                {
+                    return;
+                }
+
+                if (panelWindow.IsVisible)
+                {
+                    return;
+                }
+
+                _panelOpenSource = PanelOpenSource.Hover;
+                TryPositionPanelToCursor();
+
+                // 悬停触发：不抢焦点（避免打断当前应用输入）
+                panelWindow.ShowActivated = false;
+                panelWindow.Show();
+            }
+
+            hoverDelayTimer.Tick += (_, __) =>
+            {
+                hoverDelayTimer.Stop();
+                ShowPanelByHover();
+            };
+
+            // 悬停回调：延迟触发显示；移出触发区域立即隐藏（仅对悬停打开的面板）
             void OnHoverChanged(bool isHovering)
             {
-                if (isHovering && !panelWindow.IsVisible)
+                isHoveringNow = isHovering;
+
+                if (isHovering)
                 {
-                    try
+                    if (panelWindow.IsVisible)
                     {
-                        if (GetCursorPos(out var pt))
-                        {
-                            var dpi = VisualTreeHelper.GetDpi(MainWindow ?? panelWindow);
-                            var anchor = TaskbarAnchor.GetTaskbarAnchorNearPointPx(
-                                panelWindow.Width,
-                                panelWindow.Height,
-                                dpi.DpiScaleX,
-                                dpi.DpiScaleY,
-                                pt.X,
-                                pt.Y);
-                            panelWindow.Left = anchor.Left;
-                            panelWindow.Top = anchor.Top;
-                        }
+                        return;
                     }
-                    catch { }
 
-                    panelWindow.Show();
-                    panelWindow.Activate();
-
-                    // 强制将窗口设置为前台窗口
-                    var hwnd = new WindowInteropHelper(panelWindow).Handle;
-                    if (hwnd != IntPtr.Zero)
+                    var delayMs = Math.Clamp(panelViewModel.Settings.EmbeddedHoverDelayMs, 0, 5000);
+                    hoverDelayTimer.Stop();
+                    hoverDelayTimer.Interval = TimeSpan.FromMilliseconds(delayMs);
+                    if (delayMs <= 0)
                     {
-                        ForceForegroundWindow(hwnd);
+                        ShowPanelByHover();
                     }
+                    else
+                    {
+                        hoverDelayTimer.Start();
+                    }
+
+                    return;
+                }
+
+                hoverDelayTimer.Stop();
+
+                if (panelWindow.IsVisible && _panelOpenSource == PanelOpenSource.Hover)
+                {
+                    panelWindow.Hide();
                 }
             }
 
@@ -290,6 +437,7 @@ public partial class App : Application
             _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer, OnHoverChanged);
             if (_nativeTaskbarWindow.TryCreate())
             {
+                _embeddedTriggerHwnd = _nativeTaskbarWindow.Handle;
                 AppLogger.Info("NativeTaskbarWindow created for embedded mode");
                 return;
             }
@@ -301,6 +449,7 @@ public partial class App : Application
             _dllTaskbarEmbed = new DllTaskbarEmbed(panelViewModel, iconRenderer, OnHoverChanged);
             if (_dllTaskbarEmbed.TryCreate())
             {
+                _embeddedTriggerHwnd = _dllTaskbarEmbed.Handle;
                 AppLogger.Info("DllTaskbarEmbed created for embedded mode");
                 return;
             }
@@ -311,6 +460,7 @@ public partial class App : Application
             // 回退方案3：WPF 悬浮窗口
             _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
             _embedWindow.Show();
+            _embeddedTriggerHwnd = new WindowInteropHelper(_embedWindow).Handle;
             AppLogger.Info("TaskbarEmbedWindow created for embedded mode (fallback 2)");
         }
 
@@ -337,6 +487,8 @@ public partial class App : Application
         // 监听图标模式变化
         panelViewModel.IconDisplayModeChanged += (_, _) =>
         {
+            _embeddedTriggerHwnd = IntPtr.Zero;
+
             // 先关闭现有的副窗口
             if (_secondaryIconWindow != null)
             {
@@ -374,7 +526,11 @@ public partial class App : Application
             {
                 CreateEmbeddedModeWindows();
             }
+
+            UpdateGlobalMouseHookState();
         };
+
+        UpdateGlobalMouseHookState();
     }
 
     /// <summary>

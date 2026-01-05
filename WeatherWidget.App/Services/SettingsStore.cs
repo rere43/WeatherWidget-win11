@@ -82,6 +82,10 @@ public sealed class SettingsStore
             ? Math.Clamp(embeddedUvGapRaw, 2, 40)
             : def.EmbeddedUvToWeatherGap;
 
+        var embeddedHoverDelayMs = settings.EmbeddedHoverDelayMs >= 0
+            ? Math.Clamp(settings.EmbeddedHoverDelayMs, 0, 5000)
+            : def.EmbeddedHoverDelayMs;
+
         var embeddedTextLayout = Enum.IsDefined(typeof(EmbeddedTextLayout), settings.EmbeddedTextLayout)
             ? settings.EmbeddedTextLayout
             : def.EmbeddedTextLayout;
@@ -148,6 +152,7 @@ public sealed class SettingsStore
             EmbeddedIconScale = embeddedIconScale,
             EmbeddedOffsetX = embeddedOffsetX,
             EmbeddedUvToWeatherGap = embeddedUvGap,
+            EmbeddedHoverDelayMs = embeddedHoverDelayMs,
             EmbeddedTextLayout = embeddedTextLayout,
             EmbeddedTextAlignment = embeddedTextAlignment,
         };

@@ -82,6 +82,8 @@ public partial class TaskbarEmbedWindow : Window
     private bool _isEmbedded;
     private System.Windows.Threading.DispatcherTimer? _positionTimer;
 
+    public IntPtr Handle => _hwnd;
+
     public TaskbarEmbedWindow(PanelViewModel panelViewModel, IconRenderer iconRenderer)
     {
         InitializeComponent();
