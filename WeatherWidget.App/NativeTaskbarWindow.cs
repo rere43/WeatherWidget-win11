@@ -111,7 +111,7 @@ public sealed class NativeTaskbarWindow : IDisposable
             int notifyX = (tray != IntPtr.Zero && GetWindowRect(tray, out var rr)) ? rr.Left : rt.Right - 100;
 
             // 应用用户设置的左右偏移
-            var offsetX = (int)_panelViewModel.Settings.EmbeddedOffsetX;
+            var offsetX = (int)Math.Round((_panelViewModel.Settings.Embedded ?? Settings.Default.Embedded).OffsetX);
             int tx = notifyX - _width - 8 + offsetX, ty = rt.Top + (rt.Height - _height) / 2;
             // 任务栏/通知区右键菜单弹出期间，避免频繁“置顶保活”打乱菜单的 Z 顺序，导致菜单被遮挡。
             var popupMenu = FindWindow("#32768", null);
@@ -157,22 +157,25 @@ public sealed class NativeTaskbarWindow : IDisposable
     {
         var snapshot = _panelViewModel.Snapshot; if (snapshot is null) { _width = 100; return; }
         var settings = _panelViewModel.Settings; var now = snapshot.Now;
-        var tf = new Typeface(new FontFamily(settings.BadgeFontFamily ?? "Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+        var embedded = settings.Embedded ?? Settings.Default.Embedded;
+        var tf = new Typeface(new FontFamily(string.IsNullOrWhiteSpace(embedded.FontFamily) ? "Segoe UI" : embedded.FontFamily), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
         // 计算实际布局宽度：UV条 + 间距 + 图标 + 间距 + 文字
         var uvBarWidth = 12;
-        var uvToIconGapRaw = double.IsFinite(settings.EmbeddedUvToWeatherGap) ? settings.EmbeddedUvToWeatherGap : settings.TempBadgeOffsetY;
-        var uvToIconGap = Math.Max(uvToIconGapRaw, 2);
-        var iconToTextGap = Math.Max(settings.CornerBadgeOffsetX, 2);
+        var uvToIconGap = Math.Max(embedded.UvToIconGap, 2);
+        var iconToTextGap = Math.Max(embedded.IconToTextGap, 2);
         var baseIconSize = taskbarClientRect.Height - 8;
-        var iconSize = (int)(baseIconSize * settings.EmbeddedIconScale);
+        var iconSize = (int)(baseIconSize * embedded.IconScale);
         iconSize = Math.Clamp(iconSize, 16, taskbarClientRect.Height - 4);
 
         var baseFontSize = Math.Min((taskbarClientRect.Height - 8) / 2.0 * 0.9, 14);
-        var fontSize = baseFontSize * settings.TempBadgeFontScale;
-        var tempText = (settings.TempBadgeFormat ?? "{value}°").Replace("{value}", $"{Math.Round(now.TemperatureC):0}");
-        var humidityText = (settings.CornerHumidityFormat ?? "{value}%").Replace("{value}", $"{now.RelativeHumidityPercent:0}");
-        var textWidth = Math.Max(MeasureTextWidth(tempText, tf, fontSize, 1.0), MeasureTextWidth(humidityText, tf, fontSize, 1.0));
+        var tempSize = baseFontSize * embedded.TemperatureFontScale;
+        var humiditySize = baseFontSize * embedded.HumidityFontScale;
+        var tempText = ApplyTemplate(embedded.TemperatureFormat, $"{Math.Round(now.TemperatureC):0}", "{value}°");
+        var humidityText = ApplyTemplate(embedded.HumidityFormat, $"{now.RelativeHumidityPercent:0}", "{value}%");
+        var textWidth = Math.Max(
+            MeasureTextWidth(tempText, tf, tempSize, 1.0),
+            MeasureTextWidth(humidityText, tf, humiditySize, 1.0));
 
         _width = (int)(4 + uvBarWidth + uvToIconGap + iconSize + iconToTextGap + textWidth + 8);
         _height = taskbarClientRect.Height;
@@ -208,18 +211,13 @@ public sealed class NativeTaskbarWindow : IDisposable
         var visual = new DrawingVisual();
         using (var ctx = visual.RenderOpen())
         {
-            var tf = new Typeface(new FontFamily(settings.BadgeFontFamily ?? "Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+            var embedded = settings.Embedded ?? Settings.Default.Embedded;
+            var tf = new Typeface(new FontFamily(string.IsNullOrWhiteSpace(embedded.FontFamily) ? "Segoe UI" : embedded.FontFamily), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
-            // 配置项复用：
-            // TempBadgeOffsetX = 温湿度行间距
-            // EmbeddedUvToWeatherGap = UV条与图标间距（旧版复用 TempBadgeOffsetY）
-            // CornerBadgeOffsetX = 图标与文字间距
-            // CornerBadgeOffsetY = UV数字字号缩放（默认2.0）
-            var lineSpacing = settings.TempBadgeOffsetX;
-            var uvToIconGapRaw = double.IsFinite(settings.EmbeddedUvToWeatherGap) ? settings.EmbeddedUvToWeatherGap : settings.TempBadgeOffsetY;
-            var uvToIconGap = Math.Max(uvToIconGapRaw, 2);
-            var iconToTextGap = Math.Max(settings.CornerBadgeOffsetX, 2);
-            var uvFontScale = settings.CornerBadgeOffsetY < 0.5 ? 2.0 : settings.CornerBadgeOffsetY; // 默认2.0，最小0.5
+            var lineSpacing = embedded.LineSpacing;
+            var uvToIconGap = Math.Max(embedded.UvToIconGap, 2);
+            var iconToTextGap = Math.Max(embedded.IconToTextGap, 2);
+            var uvFontScale = embedded.UvNumberFontScale < 0.5 ? 2.0 : embedded.UvNumberFontScale; // 默认2.0，最小0.5
 
             // 布局：[UV进度条+数字] [天气图标] [温度/湿度2行]
             var padding = 4;
@@ -227,9 +225,11 @@ public sealed class NativeTaskbarWindow : IDisposable
 
             // UV数字字号（基础8px * 缩放因子）
             var uvFontSize = 8 * uvFontScale;
-            var uvText = $"{Math.Clamp(now.UvIndex ?? 0, 0, 11):0.#}";
+            var uvValue = Math.Clamp(now.UvIndex ?? 0, 0, 11);
+            var uvText = ApplyTemplate(embedded.UvNumberFormat, $"{uvValue:0.#}", "{value}");
+            var uvColor = ParseColor(embedded.UvNumberColor, Colors.White);
             var uvFt = new FormattedText(uvText, System.Globalization.CultureInfo.CurrentUICulture,
-                FlowDirection.LeftToRight, tf, uvFontSize, Brushes.White, 1.0);
+                FlowDirection.LeftToRight, tf, uvFontSize, new SolidColorBrush(uvColor), 1.0);
 
             // 进度条高度需要避让UV数字
             var uvTextHeight = uvFt.Height + 2;
@@ -238,22 +238,23 @@ public sealed class NativeTaskbarWindow : IDisposable
             var uvBarY = 4;
 
             // 1. 绘制UV竖向进度条（左侧）
-            var uvValue = Math.Clamp(now.UvIndex ?? 0, 0, 11);
             var uvProgress = uvValue / 11.0;
 
-            // 底色灰
+            var uvBg = ParseColor(embedded.UvBarBackgroundColor, Color.FromArgb(0x80, 0x80, 0x80, 0x80));
+            var uvFill = ParseColor(embedded.UvBarFillColor, Color.FromRgb(0xDA, 0x70, 0xD6));
+
             ctx.DrawRoundedRectangle(
-                new SolidColorBrush(Color.FromArgb(0x80, 0x80, 0x80, 0x80)),
+                new SolidColorBrush(uvBg),
                 null,
                 new Rect(uvBarX, uvBarY, uvBarWidth, uvBarHeight),
                 3, 3);
 
-            // 填充粉紫色（从底部向上填充）
+            // 填充（从底部向上）
             var fillHeight = uvBarHeight * uvProgress;
             if (fillHeight > 2)
             {
                 ctx.DrawRoundedRectangle(
-                    new SolidColorBrush(Color.FromRgb(0xDA, 0x70, 0xD6)), // 粉紫色
+                    new SolidColorBrush(uvFill),
                     null,
                     new Rect(uvBarX, uvBarY + uvBarHeight - fillHeight, uvBarWidth, fillHeight),
                     3, 3);
@@ -265,28 +266,26 @@ public sealed class NativeTaskbarWindow : IDisposable
             // 2. 天气图标（UV进度条右侧，应用间距配置）
             var iconX = uvBarX + uvBarWidth + uvToIconGap;
             var baseIconSize = _height - 8;
-            var iconSize = (int)(baseIconSize * settings.EmbeddedIconScale);
+            var iconSize = (int)(baseIconSize * embedded.IconScale);
             iconSize = Math.Clamp(iconSize, 16, _height - 4);
 
-            var icon = _iconRenderer.RenderWeatherOnlyIcon(now, settings, iconSize) as BitmapSource;
-            if (icon != null) ctx.DrawImage(icon, new Rect(iconX, (_height - iconSize) / 2.0, iconSize, iconSize));
+            var icon = _iconRenderer.RenderWeatherIcon(now, embedded, iconSize);
+            ctx.DrawImage(icon, new Rect(iconX, (_height - iconSize) / 2.0, iconSize, iconSize));
 
             // 3. 文字区域（2行：温度、湿度，Y轴居中）
             var textX = iconX + iconSize + iconToTextGap;
 
-            Color textColor = Colors.White;
-            try { textColor = (Color)ColorConverter.ConvertFromString(settings.TempBadgeColor ?? "#FFFFFF"); } catch { }
-            Color humidityColor = Colors.White;
-            try { humidityColor = (Color)ColorConverter.ConvertFromString(settings.CornerBadgeColor ?? "#FFFFFF"); } catch { }
+            var textColor = ParseColor(embedded.TemperatureColor, Colors.White);
+            var humidityColor = ParseColor(embedded.HumidityColor, Colors.White);
 
             // 2行布局，整体垂直居中，应用行间距
             var baseFontSize = Math.Min((_height - 8) / 2.0 * 0.9, 14);
-            var fontSize = baseFontSize * settings.TempBadgeFontScale;
-            var humidityFontSize = baseFontSize * settings.CornerBadgeFontScale;
+            var fontSize = baseFontSize * embedded.TemperatureFontScale;
+            var humidityFontSize = baseFontSize * embedded.HumidityFontScale;
 
             // 计算实际文字高度
-            var tempText = (settings.TempBadgeFormat ?? "{value}°").Replace("{value}", $"{Math.Round(now.TemperatureC):0}");
-            var humidityText = (settings.CornerHumidityFormat ?? "{value}%").Replace("{value}", $"{now.RelativeHumidityPercent:0}");
+            var tempText = ApplyTemplate(embedded.TemperatureFormat, $"{Math.Round(now.TemperatureC):0}", "{value}°");
+            var humidityText = ApplyTemplate(embedded.HumidityFormat, $"{now.RelativeHumidityPercent:0}", "{value}%");
 
             var ft1 = new FormattedText(tempText, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, tf, fontSize, new SolidColorBrush(textColor), 1.0);
             var ft2 = new FormattedText(humidityText, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, tf, humidityFontSize, new SolidColorBrush(humidityColor), 1.0);
@@ -295,27 +294,60 @@ public sealed class NativeTaskbarWindow : IDisposable
             var textStartY = (_height - totalTextHeight) / 2.0;
 
             // 第1行：温度
-            ctx.DrawText(ft1, new Point(textX, textStartY));
+            DrawTextWithStroke(ctx, tempText, textX, textStartY, fontSize, tf, textColor, embedded.TextStrokeWidth);
 
             // 第2行：湿度（应用行间距）
-            ctx.DrawText(ft2, new Point(textX, textStartY + ft1.Height + lineSpacing));
+            DrawTextWithStroke(ctx, humidityText, textX, textStartY + ft1.Height + lineSpacing, humidityFontSize, tf, humidityColor, embedded.TextStrokeWidth);
         }
         var bmp = new RenderTargetBitmap(_width, _height, 96, 96, PixelFormats.Pbgra32);
         bmp.Render(visual); return bmp;
     }
 
-    private string GetCornerText(WeatherNow now, Settings settings)
+    private static void DrawTextWithStroke(DrawingContext ctx, string text, double x, double y, double fontSize, Typeface typeface, Color color, double strokeWidth)
     {
-        return settings.IconCornerMetric switch
+        var formatted = new FormattedText(
+            text,
+            System.Globalization.CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
+            new SolidColorBrush(color),
+            1.0);
+
+        if (strokeWidth <= 0)
         {
-            Models.IconCornerMetric.UvIndex => (settings.CornerUvFormat ?? "UV{value}").Replace("{value}", $"{now.UvIndex:0.#}"),
-            Models.IconCornerMetric.Humidity => (settings.CornerHumidityFormat ?? "{value}%").Replace("{value}", $"{now.RelativeHumidityPercent:0}"),
-            _ => ""
+            ctx.DrawText(formatted, new Point(x, y));
+            return;
+        }
+
+        var textGeo = formatted.BuildGeometry(new Point(x, y));
+
+        // 深色描边
+        var strokePen = new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0x00, 0x00, 0x00)), strokeWidth)
+        {
+            LineJoin = PenLineJoin.Round
         };
+        ctx.DrawGeometry(null, strokePen, textGeo);
+
+        // 填充
+        ctx.DrawGeometry(new SolidColorBrush(color), null, textGeo);
     }
 
     private static double MeasureTextWidth(string t, Typeface tf, double sz, double dp) => new FormattedText(t, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, tf, sz, Brushes.White, dp).WidthIncludingTrailingWhitespace;
     private static string ApplyTemplate(string t, string v, string f) => (string.IsNullOrWhiteSpace(t) ? f : t).Replace("{value}", v, StringComparison.OrdinalIgnoreCase);
+
+    private static Color ParseColor(string hex, Color defaultColor)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return defaultColor;
+            return (Color)ColorConverter.ConvertFromString(hex);
+        }
+        catch
+        {
+            return defaultColor;
+        }
+    }
 
     private void CheckHover()
     {

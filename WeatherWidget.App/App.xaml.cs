@@ -79,7 +79,6 @@ public partial class App : Application
         uint eventThread,
         uint eventTime);
 
-    private SecondaryIconWindow? _secondaryIconWindow;
     private TaskbarEmbedWindow? _embedWindow;
     private NativeTaskbarWindow? _nativeTaskbarWindow;
     private DllTaskbarEmbed? _dllTaskbarEmbed;
@@ -99,6 +98,8 @@ public partial class App : Application
     private IntPtr _panelShownForegroundHwnd;
     private IntPtr _panelHwnd;
     private readonly uint _processId = (uint)Environment.ProcessId;
+    private SettingsStore? _settingsStore;
+    private PanelViewModel? _panelViewModel;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -118,6 +119,7 @@ public partial class App : Application
         AppLogger.Info($"Version: {Assembly.GetExecutingAssembly().GetName().Version}");
 
         var settingsStore = new SettingsStore(Path.Combine(appDataRoot, "settings.json"));
+        _settingsStore = settingsStore;
         var settings = settingsStore.LoadOrCreateDefault();
 
         var weatherRepository = new WeatherRepository(
@@ -128,6 +130,7 @@ public partial class App : Application
         var geocodingClient = new GeocodingClient();
 
         var panelViewModel = new PanelViewModel(settingsStore, settings, weatherRepository, clothingAdvisor, geocodingClient);
+        _panelViewModel = panelViewModel;
         var panelWindow = new PanelWindow { DataContext = panelViewModel };
 
         var embeddedIsHoveringNow = false;
@@ -154,7 +157,7 @@ public partial class App : Application
         {
             ResetEmbeddedPin();
 
-            embeddedPinDurationMs = Math.Clamp(panelViewModel.Settings.EmbeddedHoverPinMs, 0, 5000);
+            embeddedPinDurationMs = Math.Clamp((panelViewModel.Settings.Embedded ?? Settings.Default.Embedded).HoverPinMs, 0, 5000);
             if (embeddedPinDurationMs <= 0)
             {
                 embeddedIsPinned = true;
@@ -258,7 +261,7 @@ public partial class App : Application
                 return;
             }
 
-            var shouldRun = panelWindow.IsVisible || panelViewModel.IconDisplayMode == IconDisplayMode.Embedded;
+            var shouldRun = panelWindow.IsVisible || _embeddedTriggerHwnd != IntPtr.Zero;
             try
             {
                 if (shouldRun)
@@ -280,8 +283,7 @@ public partial class App : Application
         _globalMouseHook.MouseDown += (_, pt) =>
         {
             // 1) 嵌入模式：单击触发区域切换/固定面板（不拦截系统点击，只做观察）
-            if (panelViewModel.IconDisplayMode == IconDisplayMode.Embedded &&
-                _embeddedTriggerHwnd != IntPtr.Zero &&
+            if (_embeddedTriggerHwnd != IntPtr.Zero &&
                 GetWindowRect(_embeddedTriggerHwnd, out var triggerRc))
             {
                 var isInTrigger = pt.X >= triggerRc.Left && pt.X <= triggerRc.Right && pt.Y >= triggerRc.Top && pt.Y <= triggerRc.Bottom;
@@ -416,7 +418,7 @@ public partial class App : Application
             {
                 if (GetCursorPos(out var pt))
                 {
-                    var dpi = VisualTreeHelper.GetDpi(MainWindow ?? panelWindow);
+                    var dpi = VisualTreeHelper.GetDpi(panelWindow);
                     var anchor = TaskbarAnchor.GetTaskbarAnchorNearPointPx(
                         panelWindow.Width,
                         panelWindow.Height,
@@ -451,7 +453,7 @@ public partial class App : Application
                         return;
                     }
 
-                    var delayMs = Math.Clamp(panelViewModel.Settings.EmbeddedHoverDelayMs, 0, 5000);
+                    var delayMs = Math.Clamp((panelViewModel.Settings.Embedded ?? Settings.Default.Embedded).HoverDelayMs, 0, 5000);
                     embeddedHoverDelayTimer.Stop();
                     embeddedHoverDelayTimer.Interval = TimeSpan.FromMilliseconds(delayMs);
                     if (delayMs <= 0)
@@ -505,74 +507,21 @@ public partial class App : Application
             AppLogger.Info("TaskbarEmbedWindow created for embedded mode (fallback 2)");
         }
 
-        // 先创建并显示主窗口（天气图标），确保图标在左边
-        var hostWindow = new MainWindow(panelWindow, panelViewModel, iconRenderer, settingsStore);
-        MainWindow = hostWindow;
+        // 仅保留嵌入任务栏模式
+        CreateEmbeddedModeWindows();
 
-        // 必须调用 Show() 让 WPF 消息循环正常运行
-        // 嵌入模式下 MainWindow 构造函数已设置 ShowInTaskbar=false 和 Visibility=Collapsed
-        hostWindow.Show();
-
-        // 如果启用双图标模式，创建第二个图标窗口（文字在右边）
-        if (settings.IconDisplayMode == IconDisplayMode.Separate)
+        // 异步初始化数据加载与刷新
+        _ = panelWindow.Dispatcher.BeginInvoke(async () =>
         {
-            _secondaryIconWindow = new SecondaryIconWindow(panelViewModel, iconRenderer);
-            _secondaryIconWindow.Show();
-            AppLogger.Info("SecondaryIconWindow created for dual icon mode");
-        }
-        else if (settings.IconDisplayMode == IconDisplayMode.Embedded)
-        {
-            CreateEmbeddedModeWindows();
-        }
-
-        // 监听图标模式变化
-        panelViewModel.IconDisplayModeChanged += (_, _) =>
-        {
-            _embeddedTriggerHwnd = IntPtr.Zero;
-            embeddedHoverDelayTimer.Stop();
-            ResetEmbeddedPin();
-            embeddedIsHoveringNow = false;
-
-            // 先关闭现有的副窗口
-            if (_secondaryIconWindow != null)
+            try
             {
-                _secondaryIconWindow.Close();
-                _secondaryIconWindow = null;
-                AppLogger.Info("SecondaryIconWindow closed");
+                await panelViewModel.InitializeAsync();
             }
-            if (_embedWindow != null)
+            catch (Exception ex)
             {
-                _embedWindow.Close();
-                _embedWindow = null;
-                AppLogger.Info("TaskbarEmbedWindow closed");
+                AppLogger.Info($"PanelViewModel InitializeAsync failed: {ex.Message}");
             }
-            if (_nativeTaskbarWindow != null)
-            {
-                _nativeTaskbarWindow.Dispose();
-                _nativeTaskbarWindow = null;
-                AppLogger.Info("NativeTaskbarWindow closed");
-            }
-            if (_dllTaskbarEmbed != null)
-            {
-                _dllTaskbarEmbed.Dispose();
-                _dllTaskbarEmbed = null;
-                AppLogger.Info("DllTaskbarEmbed closed");
-            }
-
-            // 根据新模式创建对应窗口
-            if (panelViewModel.IconDisplayMode == IconDisplayMode.Separate)
-            {
-                _secondaryIconWindow = new SecondaryIconWindow(panelViewModel, iconRenderer);
-                _secondaryIconWindow.Show();
-                AppLogger.Info("SecondaryIconWindow created dynamically");
-            }
-            else if (panelViewModel.IconDisplayMode == IconDisplayMode.Embedded)
-            {
-                CreateEmbeddedModeWindows();
-            }
-
-            UpdateGlobalMouseHookState();
-        };
+        });
 
         UpdateGlobalMouseHookState();
     }
@@ -603,6 +552,36 @@ public partial class App : Application
     {
         try
         {
+            try
+            {
+                if (_settingsStore is not null && _panelViewModel is not null)
+                {
+                    _settingsStore.Save(_panelViewModel.Settings);
+                }
+            }
+            catch { }
+
+            try
+            {
+                _embedWindow?.Close();
+                _embedWindow = null;
+            }
+            catch { }
+
+            try
+            {
+                _nativeTaskbarWindow?.Dispose();
+                _nativeTaskbarWindow = null;
+            }
+            catch { }
+
+            try
+            {
+                _dllTaskbarEmbed?.Dispose();
+                _dllTaskbarEmbed = null;
+            }
+            catch { }
+
             _globalMouseHook?.Dispose();
             if (_foregroundEventHook != IntPtr.Zero)
             {

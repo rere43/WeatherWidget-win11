@@ -374,60 +374,164 @@ public partial class TaskbarEmbedWindow : Window
     }
 
     /// <summary>
-    /// 渲染嵌入内容：天气图标 + 温度文字，水平排列
+    /// 渲染嵌入内容：UV条数字 + 天气图标 + 气温 + 湿度
     /// </summary>
     private ImageSource RenderEmbedContent(Models.WeatherNow now, Models.Settings settings)
     {
         var dpi = VisualTreeHelper.GetDpi(this);
-        var widthPx = (int)(Width * dpi.DpiScaleX);
-        var heightPx = (int)(Height * dpi.DpiScaleY);
+        var widthDip = Width;
+        var heightDip = Height;
+        var widthPx = (int)(widthDip * dpi.DpiScaleX);
+        var heightPx = (int)(heightDip * dpi.DpiScaleY);
+        var embedded = settings.Embedded ?? Models.Settings.Default.Embedded;
 
         var visual = new DrawingVisual();
         using (var ctx = visual.RenderOpen())
         {
-            // 天气图标（左侧）
-            var iconSize = heightPx - 4;
-            var artProvider = new WeatherArtProvider();
-            var weatherArt = artProvider.RenderBaseArt(now.WeatherCode, iconSize);
-            ctx.DrawImage(weatherArt, new Rect(2, 2, iconSize, iconSize));
-
-            // 温度文字（右侧）
-            var fontFamily = new FontFamily(string.IsNullOrWhiteSpace(settings.BadgeFontFamily) ? "Segoe UI" : settings.BadgeFontFamily);
+            var fontFamily = new FontFamily(string.IsNullOrWhiteSpace(embedded.FontFamily) ? "Segoe UI" : embedded.FontFamily);
             var typeface = new Typeface(fontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
-            var tempText = $"{Math.Round(now.TemperatureC):0}°C";
-            var formatted = new FormattedText(
-                tempText,
-                System.Globalization.CultureInfo.CurrentUICulture,
-                FlowDirection.LeftToRight,
-                typeface,
-                heightPx * 0.5,
-                Brushes.White,
-                dpi.PixelsPerDip);
+            var lineSpacing = embedded.LineSpacing;
+            var uvToIconGap = Math.Max(embedded.UvToIconGap, 2);
+            var iconToTextGap = Math.Max(embedded.IconToTextGap, 2);
+            var uvFontScale = embedded.UvNumberFontScale < 0.5 ? 2.0 : embedded.UvNumberFontScale;
 
-            // 文字描边效果（提高可读性）
-            var textGeo = formatted.BuildGeometry(new Point(0, 0));
-            var textX = iconSize + 6;
-            var textY = (heightPx - formatted.Height) / 2;
+            var padding = 4.0;
+            var uvBarWidth = 12.0;
 
-            ctx.PushTransform(new TranslateTransform(textX, textY));
+            // UV 数字
+            var uvValue = Math.Clamp(now.UvIndex ?? 0, 0, 11);
+            var uvText = ApplyTemplate(embedded.UvNumberFormat, $"{uvValue:0.#}", "{value}");
+            var uvFontSize = 8 * uvFontScale;
+            var uvTextColor = ParseColor(embedded.UvNumberColor, Colors.White);
+            var uvFt = new FormattedText(uvText, System.Globalization.CultureInfo.CurrentUICulture,
+                FlowDirection.LeftToRight, typeface, uvFontSize, new SolidColorBrush(uvTextColor), dpi.PixelsPerDip);
 
-            // 深色描边
-            var strokePen = new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0x00, 0x00, 0x00)), 2)
+            var uvTextHeight = uvFt.Height + 2;
+            var uvBarHeight = Math.Max(2, heightDip - 8 - uvTextHeight);
+            var uvBarX = padding;
+            var uvBarY = 4.0;
+
+            // UV 竖条
+            var uvProgress = uvValue / 11.0;
+            var uvBg = ParseColor(embedded.UvBarBackgroundColor, Color.FromArgb(0x80, 0x80, 0x80, 0x80));
+            var uvFill = ParseColor(embedded.UvBarFillColor, Color.FromRgb(0xDA, 0x70, 0xD6));
+
+            ctx.DrawRoundedRectangle(new SolidColorBrush(uvBg), null, new Rect(uvBarX, uvBarY, uvBarWidth, uvBarHeight), 3, 3);
+
+            var fillHeight = uvBarHeight * uvProgress;
+            if (fillHeight > 2)
             {
-                LineJoin = PenLineJoin.Round
-            };
-            ctx.DrawGeometry(null, strokePen, textGeo);
+                ctx.DrawRoundedRectangle(
+                    new SolidColorBrush(uvFill),
+                    null,
+                    new Rect(uvBarX, uvBarY + uvBarHeight - fillHeight, uvBarWidth, fillHeight),
+                    3, 3);
+            }
 
-            // 白色填充
-            ctx.DrawGeometry(Brushes.White, null, textGeo);
-            ctx.Pop();
+            ctx.DrawText(uvFt, new Point(uvBarX + (uvBarWidth - uvFt.Width) / 2, uvBarY + uvBarHeight + 1));
+
+            // 天气图标
+            var iconX = uvBarX + uvBarWidth + uvToIconGap;
+            var baseIconSizeDip = heightDip - 8;
+            var iconSizeDip = Math.Clamp(baseIconSizeDip * embedded.IconScale, 16, heightDip - 4);
+            var iconSizePx = Math.Max(16, (int)Math.Round(iconSizeDip * dpi.DpiScaleX));
+
+            var icon = _iconRenderer.RenderWeatherIcon(now, embedded, iconSizePx);
+            ctx.DrawImage(icon, new Rect(iconX, (heightDip - iconSizeDip) / 2.0, iconSizeDip, iconSizeDip));
+
+            // 文字（温度/湿度两行）
+            var textX = iconX + iconSizeDip + iconToTextGap;
+            var baseFontSize = Math.Min((heightDip - 8) / 2.0 * 0.9, 14);
+            var tempFontSize = baseFontSize * embedded.TemperatureFontScale;
+            var humidityFontSize = baseFontSize * embedded.HumidityFontScale;
+
+            var tempText = ApplyTemplate(embedded.TemperatureFormat, $"{Math.Round(now.TemperatureC):0}", "{value}°");
+            var humidityText = ApplyTemplate(embedded.HumidityFormat, $"{now.RelativeHumidityPercent:0}", "{value}%");
+
+            var tempColor = ParseColor(embedded.TemperatureColor, Colors.White);
+            var humidityColor = ParseColor(embedded.HumidityColor, Colors.White);
+
+            var ft1 = new FormattedText(tempText, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, tempFontSize, Brushes.White, dpi.PixelsPerDip);
+            var ft2 = new FormattedText(humidityText, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, humidityFontSize, Brushes.White, dpi.PixelsPerDip);
+
+            var totalTextHeight = ft1.Height + lineSpacing + ft2.Height;
+            var textStartY = (heightDip - totalTextHeight) / 2.0;
+
+            DrawTextWithStroke(ctx, tempText, textX, textStartY, tempFontSize, typeface, tempColor, embedded.TextStrokeWidth, dpi.PixelsPerDip);
+            DrawTextWithStroke(ctx, humidityText, textX, textStartY + ft1.Height + lineSpacing, humidityFontSize, typeface, humidityColor, embedded.TextStrokeWidth, dpi.PixelsPerDip);
         }
 
         var bmp = new RenderTargetBitmap(widthPx, heightPx, 96 * dpi.DpiScaleX, 96 * dpi.DpiScaleY, PixelFormats.Pbgra32);
         bmp.Render(visual);
         bmp.Freeze();
         return bmp;
+    }
+
+    private static void DrawTextWithStroke(
+        DrawingContext ctx,
+        string text,
+        double x,
+        double y,
+        double fontSize,
+        Typeface typeface,
+        Color color,
+        double strokeWidth,
+        double pixelsPerDip)
+    {
+        var formatted = new FormattedText(
+            text,
+            System.Globalization.CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
+            new SolidColorBrush(color),
+            pixelsPerDip);
+
+        if (strokeWidth <= 0)
+        {
+            ctx.DrawText(formatted, new Point(x, y));
+            return;
+        }
+
+        var textGeo = formatted.BuildGeometry(new Point(x, y));
+        var strokePen = new Pen(new SolidColorBrush(Color.FromArgb(0xCC, 0x00, 0x00, 0x00)), strokeWidth)
+        {
+            LineJoin = PenLineJoin.Round
+        };
+        ctx.DrawGeometry(null, strokePen, textGeo);
+        ctx.DrawGeometry(new SolidColorBrush(color), null, textGeo);
+    }
+
+    private static string ApplyTemplate(string template, string value, string fallbackTemplate)
+    {
+        template = string.IsNullOrWhiteSpace(template) ? fallbackTemplate : template.Trim();
+        value ??= string.Empty;
+
+        if (template.Contains("{value}", StringComparison.OrdinalIgnoreCase))
+        {
+            return template.Replace("{value}", value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (template.Contains("value", StringComparison.OrdinalIgnoreCase))
+        {
+            return template.Replace("value", value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return template + value;
+    }
+
+    private static Color ParseColor(string hex, Color defaultColor)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return defaultColor;
+            return (Color)ColorConverter.ConvertFromString(hex);
+        }
+        catch
+        {
+            return defaultColor;
+        }
     }
 
     protected override void OnClosed(EventArgs e)

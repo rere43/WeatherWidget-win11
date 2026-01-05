@@ -1,24 +1,5 @@
 namespace WeatherWidget.App.Models;
 
-public enum IconCornerMetric
-{
-    Off = 0,
-    UvIndex = 1,
-    Humidity = 2,
-}
-
-public enum BadgePosition
-{
-    TopLeft = 0,
-    Top = 1,
-    TopRight = 2,
-    Left = 3,
-    Right = 4,
-    BottomLeft = 5,
-    Bottom = 6,
-    BottomRight = 7,
-}
-
 public enum ThemeMode
 {
     Auto = 0,       // 根据日出日落自动切换
@@ -42,84 +23,84 @@ public enum ThemeMode
     Pearl = 18,     // 珍珠灰白
 }
 
-public enum IconDisplayMode
+/// <summary>
+/// 任务栏嵌入显示相关配置（UV条数字 + 天气图标 + 气温 + 湿度）。
+/// </summary>
+public sealed record EmbeddedWidgetSettings
 {
-    Combined = 0,   // 单图标：天气图标+温度角标（默认）
-    Separate = 1,   // 双图标：一个显示天气图标，一个显示温度数字
-    Embedded = 2,   // 嵌入任务栏：类似 TrafficMonitor 的方式
-}
+    // 布局：温湿度两行之间的间距（DIP）
+    public double LineSpacing { get; init; } = 0;
 
-public enum EmbeddedTextLayout
-{
-    TwoLines = 0,   // 两行显示：温度+湿度（当前固定）
-}
+    // 布局：UV条与天气图标间距（DIP）
+    public double UvToIconGap { get; init; } = 4;
 
-public enum EmbeddedTextAlignment
-{
-    Left = 0,
-    Center = 1,
-    Right = 2,
-}
+    // 布局：天气图标与文字区域间距（DIP）
+    public double IconToTextGap { get; init; } = 6;
 
-public sealed record Settings(
-    string City,
-    double Latitude,
-    double Longitude,
-    IconCornerMetric IconCornerMetric,
-    TimeSpan RefreshInterval,
-    // 嵌入模式：温湿度行间距（复用TempBadgeOffsetX）
-    double TempBadgeOffsetX = 0,
-    // 嵌入模式：UV条与图标间距（复用TempBadgeOffsetY）
-    double TempBadgeOffsetY = 4,
-    double TempBadgeFontScale = 1.0,
-    string TempBadgeFormat = "{value}°",
-    BadgePosition TempBadgePosition = BadgePosition.TopRight,
-    string TempBadgeColor = "#FFFFFFFF",
-    // 嵌入模式：图标与文字间距（复用CornerBadgeOffsetX）
-    double CornerBadgeOffsetX = 6,
-    // 嵌入模式：UV数字字号缩放（复用CornerBadgeOffsetY，默认2.0）
-    double CornerBadgeOffsetY = 2.0,
-    double CornerBadgeFontScale = 1.0,
-    string CornerUvFormat = "UV{value}",
-    string CornerHumidityFormat = "{value}%",
-    BadgePosition CornerBadgePosition = BadgePosition.BottomRight,
-    string CornerBadgeColor = "#FFFFFFFF",
-    bool ExtraBadgeEnabled = false,
-    double ExtraBadgeOffsetX = 0,
-    double ExtraBadgeOffsetY = 0,
-    double ExtraBadgeFontScale = 1.0,
-    string ExtraBadgeFormat = "",
-    BadgePosition ExtraBadgePosition = BadgePosition.BottomLeft,
-    string ExtraBadgeColor = "#FFFFFFFF",
-    bool BadgeBackgroundEnabled = true,
-    double BadgeStrokeWidth = 2.0,
-    bool IconBackgroundEnabled = true,
-    double IconOffsetX = 0,
-    double IconOffsetY = 0,
-    string BadgeFontFamily = "Segoe UI",
-    ThemeMode ThemeMode = ThemeMode.Auto,
-    IconDisplayMode IconDisplayMode = IconDisplayMode.Combined,
-    bool AutoStart = false,
-    bool StartHidden = false,
-    double EmbeddedIconScale = 1.0,
-    double EmbeddedOffsetX = 0,
-    // 嵌入模式：UV条与天气图标间距（历史版本复用 TempBadgeOffsetY）
-    double EmbeddedUvToWeatherGap = double.NaN,
+    // 布局：整体水平偏移（像素，正右负左；由不同实现自行解释）
+    public double OffsetX { get; init; } = 0;
+
+    // 天气图标缩放
+    public double IconScale { get; init; } = 1.0;
+
+    // 天气图标圆角背景（避免透明图在深色任务栏上观感异常）
+    public bool WeatherIconBackgroundEnabled { get; init; } = true;
+
+    // 天气图标偏移（以 64px 图标为基准缩放）
+    public double WeatherIconOffsetX { get; init; } = 0;
+    public double WeatherIconOffsetY { get; init; } = 0;
+
     // 悬停触发面板延迟（ms）
-    int EmbeddedHoverDelayMs = 500,
+    public int HoverDelayMs { get; init; } = 500;
+
     // 悬停打开面板后，达到该时长则视为“固定”（移出触发区不再自动隐藏）（ms）
-    int EmbeddedHoverPinMs = 500,
-    EmbeddedTextLayout EmbeddedTextLayout = EmbeddedTextLayout.TwoLines,
-    EmbeddedTextAlignment EmbeddedTextAlignment = EmbeddedTextAlignment.Left)
+    public int HoverPinMs { get; init; } = 500;
+
+    // 字体与字号
+    public string FontFamily { get; init; } = "Segoe UI";
+    public double TemperatureFontScale { get; init; } = 1.0;
+    public double HumidityFontScale { get; init; } = 1.0;
+    public double UvNumberFontScale { get; init; } = 2.0;
+    public double TextStrokeWidth { get; init; } = 2.0;
+
+    // 文本格式
+    public string TemperatureFormat { get; init; } = "{value}°";
+    public string HumidityFormat { get; init; } = "{value}%";
+    public string UvNumberFormat { get; init; } = "{value}";
+
+    // 颜色（ARGB/#RRGGBB 均可）
+    public string TemperatureColor { get; init; } = "#FFFFFFFF";
+    public string HumidityColor { get; init; } = "#FFFFFFFF";
+    public string UvNumberColor { get; init; } = "#FFFFFFFF";
+    public string UvBarFillColor { get; init; } = "#FFDA70D6"; // 粉紫色
+    public string UvBarBackgroundColor { get; init; } = "#80808080";
+}
+
+/// <summary>
+/// 应用配置（仅保留“嵌入任务栏”目标所需项）。
+/// </summary>
+public sealed record Settings
 {
-    public static Settings Default =>
-        new(
-            City: "Shanghai",
-            Latitude: 31.2304,
-            Longitude: 121.4737,
-            IconCornerMetric: IconCornerMetric.UvIndex,
-            RefreshInterval: TimeSpan.FromMinutes(10),
-            EmbeddedUvToWeatherGap: 4,
-            EmbeddedHoverDelayMs: 500,
-            EmbeddedHoverPinMs: 500);
+    // 版本号：用于 settings.json 结构迁移
+    public int SchemaVersion { get; init; } = 2;
+
+    // 城市/定位
+    public string City { get; init; } = "Shanghai";
+    public double Latitude { get; init; } = 31.2304;
+    public double Longitude { get; init; } = 121.4737;
+
+    // 刷新间隔
+    public TimeSpan RefreshInterval { get; init; } = TimeSpan.FromMinutes(10);
+
+    // 面板主题
+    public ThemeMode ThemeMode { get; init; } = ThemeMode.Auto;
+
+    // 启动行为
+    public bool AutoStart { get; init; } = false;
+    public bool StartHidden { get; init; } = false;
+
+    // 嵌入任务栏显示
+    public EmbeddedWidgetSettings Embedded { get; init; } = new();
+
+    public static Settings Default => new();
 }

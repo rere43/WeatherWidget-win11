@@ -55,7 +55,7 @@
                         </Grid.RowDefinitions>
 
                         <!-- 左列：基础、图标、样式 -->
-                        <StackPanel Grid.Row="0" Grid.Column="0" Grid.RowSpan="3">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3">
                             <!-- 基础设置 -->
                             <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12">
                                 <StackPanel>
@@ -89,11 +89,11 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- 图标设置 -->
+                            <!-- 天气图标 -->
                             <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12" Margin="0,10,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="图标设置" Style="{StaticResource ValueText}" FontWeight="SemiBold" />
-                                    <CheckBox Content="显示圆角背景" IsChecked="{Binding IconBackgroundEnabled}" Margin="0,8,0,0" />
+                                    <TextBlock Text="天气图标" Style="{StaticResource ValueText}" FontWeight="SemiBold" />
+                                    <CheckBox Content="显示圆角背景" IsChecked="{Binding EmbeddedWeatherIconBackgroundEnabled}" Margin="0,8,0,0" />
                                     <Grid Margin="0,6,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -102,8 +102,8 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="偏移X" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
                                         <Slider Grid.Column="1" Minimum="-12" Maximum="12" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                Value="{Binding IconOffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
-                                        <TextBlock Grid.Column="2" Text="{Binding IconOffsetX, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                Value="{Binding EmbeddedWeatherIconOffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedWeatherIconOffsetX, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                     </Grid>
                                     <Grid Margin="0,6,0,0">
                                         <Grid.ColumnDefinitions>
@@ -113,8 +113,8 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="偏移Y" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
                                         <Slider Grid.Column="1" Minimum="-12" Maximum="12" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                Value="{Binding IconOffsetY, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
-                                        <TextBlock Grid.Column="2" Text="{Binding IconOffsetY, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                Value="{Binding EmbeddedWeatherIconOffsetY, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedWeatherIconOffsetY, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -123,29 +123,7 @@
                             <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12" Margin="0,10,0,0">
                                 <StackPanel>
                                     <TextBlock Text="嵌入任务栏设置" Style="{StaticResource ValueText}" FontWeight="SemiBold" />
-                                    <TextBlock Text="提示：嵌入模式文字复用下方角标配置（字号=FontScale，颜色=Color，间隔=OffsetX）" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,0" />
-                                    <Grid Margin="0,8,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="文字布局" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Column="1" SelectedValue="{Binding EmbeddedTextLayout}" SelectedValuePath="Tag" Margin="6,0,0,0">
-                                            <ComboBoxItem Content="两行" Tag="{x:Static models:EmbeddedTextLayout.TwoLines}" />
-                                        </ComboBox>
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="对齐" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Column="1" SelectedValue="{Binding EmbeddedTextAlignment}" SelectedValuePath="Tag" Margin="6,0,0,0">
-                                            <ComboBoxItem Content="左对齐" Tag="{x:Static models:EmbeddedTextAlignment.Left}" />
-                                            <ComboBoxItem Content="居中" Tag="{x:Static models:EmbeddedTextAlignment.Center}" />
-                                            <ComboBoxItem Content="右对齐" Tag="{x:Static models:EmbeddedTextAlignment.Right}" />
-                                        </ComboBox>
-                                    </Grid>
+                                    <TextBlock Text="用于任务栏嵌入组件的布局与交互参数。" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,0" />
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -174,10 +152,43 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="48" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="UV-天气间距" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <TextBlock Text="UV-图标间距" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
                                         <Slider Grid.Column="1" Minimum="2" Maximum="40" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                Value="{Binding EmbeddedUvToWeatherGap, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
-                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedUvToWeatherGap, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                Value="{Binding EmbeddedUvToIconGap, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedUvToIconGap, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="48" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="图标-文字间距" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="2" Maximum="40" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedIconToTextGap, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedIconToTextGap, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="48" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="行间距" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="40" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedLineSpacing, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedLineSpacing, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="48" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="UV数字字号" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="0.5" Maximum="6.0" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedUvNumberFontScale, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedUvNumberFontScale, StringFormat=x{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                     </Grid>
                                     <Grid Margin="0,6,0,0">
                                         <Grid.ColumnDefinitions>
@@ -214,7 +225,7 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="字体" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SystemFontFamilies}" SelectedItem="{Binding BadgeFontFamily}">
+                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SystemFontFamilies}" SelectedItem="{Binding EmbeddedFontFamily}">
                                             <ComboBox.ItemTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding}" FontFamily="{Binding}" />
@@ -222,17 +233,102 @@
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
                                     </Grid>
-                                    <CheckBox Content="显示背景（关闭则描边）" IsChecked="{Binding BadgeBackgroundEnabled}" Margin="0,8,0,0" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="40" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="温度字号" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="0.5" Maximum="3.0" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedTemperatureFontScale, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedTemperatureFontScale, StringFormat=x{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
                                     <Grid Margin="0,6,0,0">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="40" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="湿度字号" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="0.5" Maximum="3.0" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedHumidityFontScale, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedHumidityFontScale, StringFormat=x{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="40" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="描边" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <Slider Grid.Column="1" Minimum="0.5" Maximum="6.0" TickFrequency="0.5" IsSnapToTickEnabled="True"
-                                                Value="{Binding BadgeStrokeWidth, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding BadgeStrokeWidth, StringFormat={}{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="8.0" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedTextStrokeWidth, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedTextStrokeWidth, StringFormat={}{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="温度格式" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="1" Text="{Binding EmbeddedTemperatureFormat, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="湿度格式" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="1" Text="{Binding EmbeddedHumidityFormat, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="UV格式" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Column="1" Text="{Binding EmbeddedUvNumberFormat, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Grid>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="温度色" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <ctrl:ColorPicker Grid.Column="1" SelectedColor="{Binding EmbeddedTemperatureColor, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Left" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="湿度色" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <ctrl:ColorPicker Grid.Column="1" SelectedColor="{Binding EmbeddedHumidityColor, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Left" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="UV数字色" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <ctrl:ColorPicker Grid.Column="1" SelectedColor="{Binding EmbeddedUvNumberColor, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Left" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="UV填充色" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <ctrl:ColorPicker Grid.Column="1" SelectedColor="{Binding EmbeddedUvBarFillColor, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Left" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="UV底色" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <ctrl:ColorPicker Grid.Column="1" SelectedColor="{Binding EmbeddedUvBarBackgroundColor, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Left" />
                                     </Grid>
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
@@ -262,228 +358,10 @@
                                             <ComboBoxItem Content="珍珠" Tag="{x:Static models:ThemeMode.Pearl}" />
                                         </ComboBox>
                                     </Grid>
-                                    <Grid Margin="0,8,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="60" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="图标模式" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Column="1" SelectedValue="{Binding IconDisplayMode}" SelectedValuePath="Tag">
-                                            <ComboBoxItem Content="合并（单图标）" Tag="{x:Static models:IconDisplayMode.Combined}" />
-                                            <ComboBoxItem Content="分离（双图标）" Tag="{x:Static models:IconDisplayMode.Separate}" />
-                                            <ComboBoxItem Content="嵌入任务栏" Tag="{x:Static models:IconDisplayMode.Embedded}" />
-                                        </ComboBox>
-                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
 
-                        <!-- 右列：温度、副角标、额外 -->
-                        <StackPanel Grid.Row="0" Grid.Column="2" Grid.RowSpan="3">
-                            <!-- 温度角标 -->
-                            <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12">
-                                <StackPanel>
-                                    <TextBlock Text="温度角标" Style="{StaticResource ValueText}" FontWeight="SemiBold" />
-                                    <Grid Margin="0,8,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="位置" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Column="1" SelectedValue="{Binding TempBadgePosition}" SelectedValuePath="Tag">
-                                            <ComboBoxItem Content="左上" Tag="{x:Static models:BadgePosition.TopLeft}" />
-                                            <ComboBoxItem Content="上方" Tag="{x:Static models:BadgePosition.Top}" />
-                                            <ComboBoxItem Content="右上" Tag="{x:Static models:BadgePosition.TopRight}" />
-                                            <ComboBoxItem Content="左侧" Tag="{x:Static models:BadgePosition.Left}" />
-                                            <ComboBoxItem Content="右侧" Tag="{x:Static models:BadgePosition.Right}" />
-                                            <ComboBoxItem Content="左下" Tag="{x:Static models:BadgePosition.BottomLeft}" />
-                                            <ComboBoxItem Content="下方" Tag="{x:Static models:BadgePosition.Bottom}" />
-                                            <ComboBoxItem Content="右下" Tag="{x:Static models:BadgePosition.BottomRight}" />
-                                        </ComboBox>
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="格式" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <TextBox Grid.Column="1" Text="{Binding TempBadgeFormat, UpdateSourceTrigger=PropertyChanged}" />
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="颜色" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ctrl:ColorPicker Grid.Column="1" SelectedColor="{Binding TempBadgeColor, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Left" />
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="32" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="偏移" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                            <TextBlock Text="X" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                            <Slider Width="60" Minimum="-18" Maximum="18" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                    Value="{Binding TempBadgeOffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0" />
-                                            <TextBlock Text="Y" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                            <Slider Width="60" Minimum="-18" Maximum="18" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                    Value="{Binding TempBadgeOffsetY, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="40" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="字号" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <Slider Grid.Column="1" Minimum="0.7" Maximum="2.0" TickFrequency="0.1" IsSnapToTickEnabled="True"
-                                                Value="{Binding TempBadgeFontScale, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding TempBadgeFontScale, StringFormat=x{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- 副角标 -->
-                            <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12" Margin="0,10,0,0">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="副角标" Style="{StaticResource ValueText}" FontWeight="SemiBold" />
-                                        <ComboBox SelectedValue="{Binding IconCornerMetric}" SelectedValuePath="Tag" Margin="8,0,0,0">
-                                            <ComboBoxItem Content="关闭" Tag="{x:Static models:IconCornerMetric.Off}" />
-                                            <ComboBoxItem Content="UV" Tag="{x:Static models:IconCornerMetric.UvIndex}" />
-                                            <ComboBoxItem Content="湿度" Tag="{x:Static models:IconCornerMetric.Humidity}" />
-                                        </ComboBox>
-                                    </StackPanel>
-                                    <Grid Margin="0,8,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="位置" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Column="1" SelectedValue="{Binding CornerBadgePosition}" SelectedValuePath="Tag">
-                                            <ComboBoxItem Content="左上" Tag="{x:Static models:BadgePosition.TopLeft}" />
-                                            <ComboBoxItem Content="上方" Tag="{x:Static models:BadgePosition.Top}" />
-                                            <ComboBoxItem Content="右上" Tag="{x:Static models:BadgePosition.TopRight}" />
-                                            <ComboBoxItem Content="左侧" Tag="{x:Static models:BadgePosition.Left}" />
-                                            <ComboBoxItem Content="右侧" Tag="{x:Static models:BadgePosition.Right}" />
-                                            <ComboBoxItem Content="左下" Tag="{x:Static models:BadgePosition.BottomLeft}" />
-                                            <ComboBoxItem Content="下方" Tag="{x:Static models:BadgePosition.Bottom}" />
-                                            <ComboBoxItem Content="右下" Tag="{x:Static models:BadgePosition.BottomRight}" />
-                                        </ComboBox>
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="颜色" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ctrl:ColorPicker Grid.Column="1" SelectedColor="{Binding CornerBadgeColor, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Left" />
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="32" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="偏移" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                            <TextBlock Text="X" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                            <Slider Width="60" Minimum="-18" Maximum="18" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                    Value="{Binding CornerBadgeOffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0" />
-                                            <TextBlock Text="Y" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                            <Slider Width="60" Minimum="-18" Maximum="18" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                    Value="{Binding CornerBadgeOffsetY, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="40" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="字号" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <Slider Grid.Column="1" Minimum="0.7" Maximum="2.0" TickFrequency="0.1" IsSnapToTickEnabled="True"
-                                                Value="{Binding CornerBadgeFontScale, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding CornerBadgeFontScale, StringFormat=x{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- 额外角标 -->
-                            <Border Background="{DynamicResource SoftPanelBrush}" CornerRadius="12" Padding="12" Margin="0,10,0,0">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="额外角标" Style="{StaticResource ValueText}" FontWeight="SemiBold" />
-                                        <CheckBox Content="启用" IsChecked="{Binding ExtraBadgeEnabled}" Margin="12,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <Grid Margin="0,8,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="位置" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Column="1" SelectedValue="{Binding ExtraBadgePosition}" SelectedValuePath="Tag">
-                                            <ComboBoxItem Content="左上" Tag="{x:Static models:BadgePosition.TopLeft}" />
-                                            <ComboBoxItem Content="上方" Tag="{x:Static models:BadgePosition.Top}" />
-                                            <ComboBoxItem Content="右上" Tag="{x:Static models:BadgePosition.TopRight}" />
-                                            <ComboBoxItem Content="左侧" Tag="{x:Static models:BadgePosition.Left}" />
-                                            <ComboBoxItem Content="右侧" Tag="{x:Static models:BadgePosition.Right}" />
-                                            <ComboBoxItem Content="左下" Tag="{x:Static models:BadgePosition.BottomLeft}" />
-                                            <ComboBoxItem Content="下方" Tag="{x:Static models:BadgePosition.Bottom}" />
-                                            <ComboBoxItem Content="右下" Tag="{x:Static models:BadgePosition.BottomRight}" />
-                                        </ComboBox>
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="格式" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <TextBox Grid.Column="1" Text="{Binding ExtraBadgeFormat, UpdateSourceTrigger=PropertyChanged}" />
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="颜色" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ctrl:ColorPicker Grid.Column="1" SelectedColor="{Binding ExtraBadgeColor, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Left" />
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="32" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="偏移" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                            <TextBlock Text="X" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                            <Slider Width="60" Minimum="-18" Maximum="18" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                    Value="{Binding ExtraBadgeOffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0" />
-                                            <TextBlock Text="Y" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                            <Slider Width="60" Minimum="-18" Maximum="18" TickFrequency="1" IsSnapToTickEnabled="True"
-                                                    Value="{Binding ExtraBadgeOffsetY, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="40" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="40" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="字号" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <Slider Grid.Column="1" Minimum="0.7" Maximum="2.0" TickFrequency="0.1" IsSnapToTickEnabled="True"
-                                                Value="{Binding ExtraBadgeFontScale, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding ExtraBadgeFontScale, StringFormat=x{0:0.0}}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                    </Grid>
-                                    <TextBlock Text="支持: {temp} {uv} {rh}" Style="{StaticResource SubtleText}" Margin="0,6,0,0" FontSize="10" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
                     </Grid>
                 </StackPanel>
             </ScrollViewer>

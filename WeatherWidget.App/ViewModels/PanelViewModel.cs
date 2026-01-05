@@ -30,43 +30,33 @@ public sealed class PanelViewModel : ObservableObject
     private bool _suppressCitySearch;
     private GeoSuggestion? _selectedCitySuggestion;
     private ResolvedLocation? _pendingCityResolved;
-    private double _tempBadgeOffsetX;
-    private double _tempBadgeOffsetY;
-    private double _tempBadgeFontScale;
-    private string _tempBadgeFormat;
-    private double _cornerBadgeOffsetX;
-    private double _cornerBadgeOffsetY;
-    private double _cornerBadgeFontScale;
-    private string _cornerUvFormat;
-    private string _cornerHumidityFormat;
-    private bool _extraBadgeEnabled;
-    private double _extraBadgeOffsetX;
-    private double _extraBadgeOffsetY;
-    private double _extraBadgeFontScale;
-    private string _extraBadgeFormat;
     private int _refreshMinutes;
-    private IconCornerMetric _iconCornerMetric;
-    private bool _badgeBackgroundEnabled;
-    private double _badgeStrokeWidth;
-    private bool _iconBackgroundEnabled;
-    private double _iconOffsetX;
-    private double _iconOffsetY;
-    private BadgePosition _tempBadgePosition;
-    private BadgePosition _cornerBadgePosition;
-    private BadgePosition _extraBadgePosition;
-    private string _badgeFontFamily;
-    private string _tempBadgeColor;
-    private string _cornerBadgeColor;
-    private string _extraBadgeColor;
     private ThemeMode _themeMode;
-    private IconDisplayMode _iconDisplayMode;
-    private double _embeddedIconScale;
+
+    // 嵌入任务栏显示配置（来自 Settings.Embedded）
+    private double _embeddedLineSpacing;
+    private double _embeddedUvToIconGap;
+    private double _embeddedIconToTextGap;
     private double _embeddedOffsetX;
-    private double _embeddedUvToWeatherGap;
+    private double _embeddedIconScale;
+    private bool _embeddedWeatherIconBackgroundEnabled;
+    private double _embeddedWeatherIconOffsetX;
+    private double _embeddedWeatherIconOffsetY;
     private int _embeddedHoverDelayMs;
     private int _embeddedHoverPinMs;
-    private EmbeddedTextLayout _embeddedTextLayout;
-    private EmbeddedTextAlignment _embeddedTextAlignment;
+    private string _embeddedFontFamily = "Segoe UI";
+    private double _embeddedTemperatureFontScale;
+    private double _embeddedHumidityFontScale;
+    private double _embeddedUvNumberFontScale;
+    private double _embeddedTextStrokeWidth;
+    private string _embeddedTemperatureFormat = "{value}°";
+    private string _embeddedHumidityFormat = "{value}%";
+    private string _embeddedUvNumberFormat = "{value}";
+    private string _embeddedTemperatureColor = "#FFFFFFFF";
+    private string _embeddedHumidityColor = "#FFFFFFFF";
+    private string _embeddedUvNumberColor = "#FFFFFFFF";
+    private string _embeddedUvBarFillColor = "#FFDA70D6";
+    private string _embeddedUvBarBackgroundColor = "#80808080";
     private readonly DispatcherTimer _settingsSaveTimer;
     private bool _settingsSavePending;
 
@@ -115,43 +105,32 @@ public sealed class PanelViewModel : ObservableObject
         ToggleLogPanelCommand = new RelayCommand(ToggleLogPanel);
 
         _city = Settings.City;
-        _tempBadgeOffsetX = Settings.TempBadgeOffsetX;
-        _tempBadgeOffsetY = Settings.TempBadgeOffsetY;
-        _tempBadgeFontScale = Settings.TempBadgeFontScale;
-        _tempBadgeFormat = Settings.TempBadgeFormat;
-        _cornerBadgeOffsetX = Settings.CornerBadgeOffsetX;
-        _cornerBadgeOffsetY = Settings.CornerBadgeOffsetY;
-        _cornerBadgeFontScale = Settings.CornerBadgeFontScale;
-        _cornerUvFormat = Settings.CornerUvFormat;
-        _cornerHumidityFormat = Settings.CornerHumidityFormat;
-        _extraBadgeEnabled = Settings.ExtraBadgeEnabled;
-        _extraBadgeOffsetX = Settings.ExtraBadgeOffsetX;
-        _extraBadgeOffsetY = Settings.ExtraBadgeOffsetY;
-        _extraBadgeFontScale = Settings.ExtraBadgeFontScale;
-        _extraBadgeFormat = Settings.ExtraBadgeFormat;
         _refreshMinutes = Math.Max(1, (int)Math.Round(Settings.RefreshInterval.TotalMinutes));
-        _iconCornerMetric = Settings.IconCornerMetric;
-        _badgeBackgroundEnabled = Settings.BadgeBackgroundEnabled;
-        _badgeStrokeWidth = Settings.BadgeStrokeWidth;
-        _iconBackgroundEnabled = Settings.IconBackgroundEnabled;
-        _iconOffsetX = Settings.IconOffsetX;
-        _iconOffsetY = Settings.IconOffsetY;
-        _tempBadgePosition = Settings.TempBadgePosition;
-        _cornerBadgePosition = Settings.CornerBadgePosition;
-        _extraBadgePosition = Settings.ExtraBadgePosition;
-        _badgeFontFamily = Settings.BadgeFontFamily;
-        _tempBadgeColor = Settings.TempBadgeColor;
-        _cornerBadgeColor = Settings.CornerBadgeColor;
-        _extraBadgeColor = Settings.ExtraBadgeColor;
         _themeMode = Settings.ThemeMode;
-        _iconDisplayMode = Settings.IconDisplayMode;
-        _embeddedIconScale = Settings.EmbeddedIconScale;
-        _embeddedOffsetX = Settings.EmbeddedOffsetX;
-        _embeddedUvToWeatherGap = Settings.EmbeddedUvToWeatherGap;
-        _embeddedHoverDelayMs = Settings.EmbeddedHoverDelayMs;
-        _embeddedHoverPinMs = Settings.EmbeddedHoverPinMs;
-        _embeddedTextLayout = Settings.EmbeddedTextLayout;
-        _embeddedTextAlignment = Settings.EmbeddedTextAlignment;
+        var embedded = Settings.Embedded ?? AppSettings.Default.Embedded;
+        _embeddedLineSpacing = embedded.LineSpacing;
+        _embeddedUvToIconGap = embedded.UvToIconGap;
+        _embeddedIconToTextGap = embedded.IconToTextGap;
+        _embeddedOffsetX = embedded.OffsetX;
+        _embeddedIconScale = embedded.IconScale;
+        _embeddedWeatherIconBackgroundEnabled = embedded.WeatherIconBackgroundEnabled;
+        _embeddedWeatherIconOffsetX = embedded.WeatherIconOffsetX;
+        _embeddedWeatherIconOffsetY = embedded.WeatherIconOffsetY;
+        _embeddedHoverDelayMs = embedded.HoverDelayMs;
+        _embeddedHoverPinMs = embedded.HoverPinMs;
+        _embeddedFontFamily = embedded.FontFamily;
+        _embeddedTemperatureFontScale = embedded.TemperatureFontScale;
+        _embeddedHumidityFontScale = embedded.HumidityFontScale;
+        _embeddedUvNumberFontScale = embedded.UvNumberFontScale;
+        _embeddedTextStrokeWidth = embedded.TextStrokeWidth;
+        _embeddedTemperatureFormat = embedded.TemperatureFormat;
+        _embeddedHumidityFormat = embedded.HumidityFormat;
+        _embeddedUvNumberFormat = embedded.UvNumberFormat;
+        _embeddedTemperatureColor = embedded.TemperatureColor;
+        _embeddedHumidityColor = embedded.HumidityColor;
+        _embeddedUvNumberColor = embedded.UvNumberColor;
+        _embeddedUvBarFillColor = embedded.UvBarFillColor;
+        _embeddedUvBarBackgroundColor = embedded.UvBarBackgroundColor;
 
         _settingsSaveTimer = new DispatcherTimer
         {
@@ -274,227 +253,157 @@ public sealed class PanelViewModel : ObservableObject
         }
     }
 
-    public double TempBadgeOffsetX
-    {
-        get => _tempBadgeOffsetX;
-        set
-        {
-            if (!SetProperty(ref _tempBadgeOffsetX, value))
-            {
-                return;
-            }
+    private EmbeddedWidgetSettings CurrentEmbeddedSettings =>
+        Settings.Embedded ?? AppSettings.Default.Embedded;
 
-            Settings = Settings with { TempBadgeOffsetX = value };
-            ScheduleSettingsSave();
+    private void UpdateEmbeddedSettings(EmbeddedWidgetSettings embedded, bool notifyWeather = true)
+    {
+        Settings = Settings with { Embedded = embedded };
+        ScheduleSettingsSave();
+        if (notifyWeather)
+        {
             WeatherUpdated?.Invoke(this, EventArgs.Empty);
         }
     }
 
-    public double TempBadgeOffsetY
+    public double EmbeddedLineSpacing
     {
-        get => _tempBadgeOffsetY;
+        get => _embeddedLineSpacing;
         set
         {
-            if (!SetProperty(ref _tempBadgeOffsetY, value))
+            value = Math.Clamp(value, 0, 40);
+            if (!SetProperty(ref _embeddedLineSpacing, value))
             {
                 return;
             }
 
-            Settings = Settings with { TempBadgeOffsetY = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { LineSpacing = value });
         }
     }
 
-    public double TempBadgeFontScale
+    public double EmbeddedUvToIconGap
     {
-        get => _tempBadgeFontScale;
+        get => _embeddedUvToIconGap;
         set
         {
-            if (!SetProperty(ref _tempBadgeFontScale, value))
+            value = Math.Clamp(value, 2, 40);
+            if (!SetProperty(ref _embeddedUvToIconGap, value))
             {
                 return;
             }
 
-            Settings = Settings with { TempBadgeFontScale = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { UvToIconGap = value });
         }
     }
 
-    public string TempBadgeFormat
+    public double EmbeddedTemperatureFontScale
     {
-        get => _tempBadgeFormat;
+        get => _embeddedTemperatureFontScale;
         set
         {
-            if (!SetProperty(ref _tempBadgeFormat, value))
+            value = Math.Clamp(value, 0.5, 3.0);
+            if (!SetProperty(ref _embeddedTemperatureFontScale, value))
             {
                 return;
             }
 
-            Settings = Settings with { TempBadgeFormat = string.IsNullOrWhiteSpace(value) ? AppSettings.Default.TempBadgeFormat : value.Trim() };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { TemperatureFontScale = value });
         }
     }
 
-    public double CornerBadgeOffsetX
+    public string EmbeddedTemperatureFormat
     {
-        get => _cornerBadgeOffsetX;
+        get => _embeddedTemperatureFormat;
         set
         {
-            if (!SetProperty(ref _cornerBadgeOffsetX, value))
+            if (!SetProperty(ref _embeddedTemperatureFormat, value))
             {
                 return;
             }
 
-            Settings = Settings with { CornerBadgeOffsetX = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? AppSettings.Default.Embedded.TemperatureFormat
+                : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { TemperatureFormat = normalized });
         }
     }
 
-    public double CornerBadgeOffsetY
+    public double EmbeddedIconToTextGap
     {
-        get => _cornerBadgeOffsetY;
+        get => _embeddedIconToTextGap;
         set
         {
-            if (!SetProperty(ref _cornerBadgeOffsetY, value))
+            value = Math.Clamp(value, 2, 40);
+            if (!SetProperty(ref _embeddedIconToTextGap, value))
             {
                 return;
             }
 
-            Settings = Settings with { CornerBadgeOffsetY = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { IconToTextGap = value });
         }
     }
 
-    public double CornerBadgeFontScale
+    public double EmbeddedUvNumberFontScale
     {
-        get => _cornerBadgeFontScale;
+        get => _embeddedUvNumberFontScale;
         set
         {
-            if (!SetProperty(ref _cornerBadgeFontScale, value))
+            value = Math.Clamp(value, 0.5, 6.0);
+            if (!SetProperty(ref _embeddedUvNumberFontScale, value))
             {
                 return;
             }
 
-            Settings = Settings with { CornerBadgeFontScale = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { UvNumberFontScale = value });
         }
     }
 
-    public string CornerUvFormat
+    public double EmbeddedHumidityFontScale
     {
-        get => _cornerUvFormat;
+        get => _embeddedHumidityFontScale;
         set
         {
-            if (!SetProperty(ref _cornerUvFormat, value))
+            value = Math.Clamp(value, 0.5, 3.0);
+            if (!SetProperty(ref _embeddedHumidityFontScale, value))
             {
                 return;
             }
 
-            Settings = Settings with { CornerUvFormat = string.IsNullOrWhiteSpace(value) ? AppSettings.Default.CornerUvFormat : value.Trim() };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { HumidityFontScale = value });
         }
     }
 
-    public string CornerHumidityFormat
+    public string EmbeddedUvNumberFormat
     {
-        get => _cornerHumidityFormat;
+        get => _embeddedUvNumberFormat;
         set
         {
-            if (!SetProperty(ref _cornerHumidityFormat, value))
+            if (!SetProperty(ref _embeddedUvNumberFormat, value))
             {
                 return;
             }
 
-            Settings = Settings with { CornerHumidityFormat = string.IsNullOrWhiteSpace(value) ? AppSettings.Default.CornerHumidityFormat : value.Trim() };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? AppSettings.Default.Embedded.UvNumberFormat
+                : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { UvNumberFormat = normalized });
         }
     }
 
-    public bool ExtraBadgeEnabled
+    public string EmbeddedHumidityFormat
     {
-        get => _extraBadgeEnabled;
+        get => _embeddedHumidityFormat;
         set
         {
-            if (!SetProperty(ref _extraBadgeEnabled, value))
+            if (!SetProperty(ref _embeddedHumidityFormat, value))
             {
                 return;
             }
 
-            Settings = Settings with { ExtraBadgeEnabled = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public double ExtraBadgeOffsetX
-    {
-        get => _extraBadgeOffsetX;
-        set
-        {
-            if (!SetProperty(ref _extraBadgeOffsetX, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { ExtraBadgeOffsetX = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public double ExtraBadgeOffsetY
-    {
-        get => _extraBadgeOffsetY;
-        set
-        {
-            if (!SetProperty(ref _extraBadgeOffsetY, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { ExtraBadgeOffsetY = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public double ExtraBadgeFontScale
-    {
-        get => _extraBadgeFontScale;
-        set
-        {
-            if (!SetProperty(ref _extraBadgeFontScale, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { ExtraBadgeFontScale = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public string ExtraBadgeFormat
-    {
-        get => _extraBadgeFormat;
-        set
-        {
-            if (!SetProperty(ref _extraBadgeFormat, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { ExtraBadgeFormat = string.IsNullOrWhiteSpace(value) ? AppSettings.Default.ExtraBadgeFormat : value.Trim() };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? AppSettings.Default.Embedded.HumidityFormat
+                : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { HumidityFormat = normalized });
         }
     }
 
@@ -504,213 +413,160 @@ public sealed class PanelViewModel : ObservableObject
         set => SetProperty(ref _refreshMinutes, Math.Max(1, value));
     }
 
-    public IconCornerMetric IconCornerMetric
+    public double EmbeddedTextStrokeWidth
     {
-        get => _iconCornerMetric;
+        get => _embeddedTextStrokeWidth;
         set
         {
-            if (!SetProperty(ref _iconCornerMetric, value))
+            value = Math.Clamp(value, 0, 8.0);
+            if (!SetProperty(ref _embeddedTextStrokeWidth, value))
             {
                 return;
             }
 
-            // 角标设置即时生效并持久化（不要求额外点击"保存"）
-            Settings = Settings with { IconCornerMetric = value };
-            _settingsStore.Save(Settings);
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { TextStrokeWidth = value });
         }
     }
 
-    public bool BadgeBackgroundEnabled
+    public bool EmbeddedWeatherIconBackgroundEnabled
     {
-        get => _badgeBackgroundEnabled;
+        get => _embeddedWeatherIconBackgroundEnabled;
         set
         {
-            if (!SetProperty(ref _badgeBackgroundEnabled, value))
+            if (!SetProperty(ref _embeddedWeatherIconBackgroundEnabled, value))
             {
                 return;
             }
 
-            Settings = Settings with { BadgeBackgroundEnabled = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { WeatherIconBackgroundEnabled = value });
         }
     }
 
-    public double BadgeStrokeWidth
+    public double EmbeddedWeatherIconOffsetX
     {
-        get => _badgeStrokeWidth;
+        get => _embeddedWeatherIconOffsetX;
         set
         {
-            value = Math.Clamp(value, 0.5, 6.0);
-            if (!SetProperty(ref _badgeStrokeWidth, value))
+            if (!SetProperty(ref _embeddedWeatherIconOffsetX, value))
             {
                 return;
             }
 
-            Settings = Settings with { BadgeStrokeWidth = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { WeatherIconOffsetX = value });
         }
     }
 
-    public bool IconBackgroundEnabled
+    public double EmbeddedWeatherIconOffsetY
     {
-        get => _iconBackgroundEnabled;
+        get => _embeddedWeatherIconOffsetY;
         set
         {
-            if (!SetProperty(ref _iconBackgroundEnabled, value))
+            if (!SetProperty(ref _embeddedWeatherIconOffsetY, value))
             {
                 return;
             }
 
-            Settings = Settings with { IconBackgroundEnabled = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { WeatherIconOffsetY = value });
         }
     }
 
-    public double IconOffsetX
+    public string EmbeddedFontFamily
     {
-        get => _iconOffsetX;
+        get => _embeddedFontFamily;
         set
         {
-            if (!SetProperty(ref _iconOffsetX, value))
+            if (!SetProperty(ref _embeddedFontFamily, value))
             {
                 return;
             }
 
-            Settings = Settings with { IconOffsetX = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value) ? "Segoe UI" : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { FontFamily = normalized });
         }
     }
 
-    public double IconOffsetY
+    public string EmbeddedTemperatureColor
     {
-        get => _iconOffsetY;
+        get => _embeddedTemperatureColor;
         set
         {
-            if (!SetProperty(ref _iconOffsetY, value))
+            if (!SetProperty(ref _embeddedTemperatureColor, value))
             {
                 return;
             }
 
-            Settings = Settings with { IconOffsetY = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? AppSettings.Default.Embedded.TemperatureColor
+                : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { TemperatureColor = normalized });
         }
     }
 
-    public BadgePosition TempBadgePosition
+    public string EmbeddedHumidityColor
     {
-        get => _tempBadgePosition;
+        get => _embeddedHumidityColor;
         set
         {
-            if (!SetProperty(ref _tempBadgePosition, value))
+            if (!SetProperty(ref _embeddedHumidityColor, value))
             {
                 return;
             }
 
-            Settings = Settings with { TempBadgePosition = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? AppSettings.Default.Embedded.HumidityColor
+                : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { HumidityColor = normalized });
         }
     }
 
-    public BadgePosition CornerBadgePosition
+    public string EmbeddedUvNumberColor
     {
-        get => _cornerBadgePosition;
+        get => _embeddedUvNumberColor;
         set
         {
-            if (!SetProperty(ref _cornerBadgePosition, value))
+            if (!SetProperty(ref _embeddedUvNumberColor, value))
             {
                 return;
             }
 
-            Settings = Settings with { CornerBadgePosition = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? AppSettings.Default.Embedded.UvNumberColor
+                : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { UvNumberColor = normalized });
         }
     }
 
-    public BadgePosition ExtraBadgePosition
+    public string EmbeddedUvBarFillColor
     {
-        get => _extraBadgePosition;
+        get => _embeddedUvBarFillColor;
         set
         {
-            if (!SetProperty(ref _extraBadgePosition, value))
+            if (!SetProperty(ref _embeddedUvBarFillColor, value))
             {
                 return;
             }
 
-            Settings = Settings with { ExtraBadgePosition = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? AppSettings.Default.Embedded.UvBarFillColor
+                : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { UvBarFillColor = normalized });
         }
     }
 
-    public string BadgeFontFamily
+    public string EmbeddedUvBarBackgroundColor
     {
-        get => _badgeFontFamily;
+        get => _embeddedUvBarBackgroundColor;
         set
         {
-            if (!SetProperty(ref _badgeFontFamily, value))
+            if (!SetProperty(ref _embeddedUvBarBackgroundColor, value))
             {
                 return;
             }
 
-            Settings = Settings with { BadgeFontFamily = string.IsNullOrWhiteSpace(value) ? "Segoe UI" : value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public string TempBadgeColor
-    {
-        get => _tempBadgeColor;
-        set
-        {
-            if (!SetProperty(ref _tempBadgeColor, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { TempBadgeColor = string.IsNullOrWhiteSpace(value) ? "#FFFFFFFF" : value.Trim() };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public string CornerBadgeColor
-    {
-        get => _cornerBadgeColor;
-        set
-        {
-            if (!SetProperty(ref _cornerBadgeColor, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { CornerBadgeColor = string.IsNullOrWhiteSpace(value) ? "#FFFFFFFF" : value.Trim() };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public string ExtraBadgeColor
-    {
-        get => _extraBadgeColor;
-        set
-        {
-            if (!SetProperty(ref _extraBadgeColor, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { ExtraBadgeColor = string.IsNullOrWhiteSpace(value) ? "#FFFFFFFF" : value.Trim() };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? AppSettings.Default.Embedded.UvBarBackgroundColor
+                : value.Trim();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { UvBarBackgroundColor = normalized });
         }
     }
 
@@ -732,25 +588,6 @@ public sealed class PanelViewModel : ObservableObject
 
     public event EventHandler? ThemeModeChanged;
 
-    public IconDisplayMode IconDisplayMode
-    {
-        get => _iconDisplayMode;
-        set
-        {
-            if (!SetProperty(ref _iconDisplayMode, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { IconDisplayMode = value };
-            ScheduleSettingsSave();
-            IconDisplayModeChanged?.Invoke(this, EventArgs.Empty);
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public event EventHandler? IconDisplayModeChanged;
-
     public double EmbeddedIconScale
     {
         get => _embeddedIconScale;
@@ -762,9 +599,7 @@ public sealed class PanelViewModel : ObservableObject
                 return;
             }
 
-            Settings = Settings with { EmbeddedIconScale = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { IconScale = value });
         }
     }
 
@@ -779,26 +614,7 @@ public sealed class PanelViewModel : ObservableObject
                 return;
             }
 
-            Settings = Settings with { EmbeddedOffsetX = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public double EmbeddedUvToWeatherGap
-    {
-        get => _embeddedUvToWeatherGap;
-        set
-        {
-            value = Math.Clamp(value, 2, 40);
-            if (!SetProperty(ref _embeddedUvToWeatherGap, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { EmbeddedUvToWeatherGap = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { OffsetX = value }, notifyWeather: false);
         }
     }
 
@@ -813,8 +629,7 @@ public sealed class PanelViewModel : ObservableObject
                 return;
             }
 
-            Settings = Settings with { EmbeddedHoverDelayMs = value };
-            ScheduleSettingsSave();
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { HoverDelayMs = value }, notifyWeather: false);
         }
     }
 
@@ -829,40 +644,7 @@ public sealed class PanelViewModel : ObservableObject
                 return;
             }
 
-            Settings = Settings with { EmbeddedHoverPinMs = value };
-            ScheduleSettingsSave();
-        }
-    }
-
-    public EmbeddedTextLayout EmbeddedTextLayout
-    {
-        get => _embeddedTextLayout;
-        set
-        {
-            if (!SetProperty(ref _embeddedTextLayout, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { EmbeddedTextLayout = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    public EmbeddedTextAlignment EmbeddedTextAlignment
-    {
-        get => _embeddedTextAlignment;
-        set
-        {
-            if (!SetProperty(ref _embeddedTextAlignment, value))
-            {
-                return;
-            }
-
-            Settings = Settings with { EmbeddedTextAlignment = value };
-            ScheduleSettingsSave();
-            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+            UpdateEmbeddedSettings(CurrentEmbeddedSettings with { HoverPinMs = value }, notifyWeather: false);
         }
     }
 
@@ -1143,23 +925,6 @@ public sealed class PanelViewModel : ObservableObject
     {
         var newCity = string.IsNullOrWhiteSpace(City) ? Settings.City : City.Trim();
         var refresh = TimeSpan.FromMinutes(Math.Max(1, RefreshMinutes));
-        var def = AppSettings.Default;
-
-        var tempOffsetX = TempBadgeOffsetX;
-        var tempOffsetY = TempBadgeOffsetY;
-        var tempScale = TempBadgeFontScale;
-        var cornerOffsetX = CornerBadgeOffsetX;
-        var cornerOffsetY = CornerBadgeOffsetY;
-        var cornerScale = CornerBadgeFontScale;
-        var extraEnabled = ExtraBadgeEnabled;
-        var extraOffsetX = ExtraBadgeOffsetX;
-        var extraOffsetY = ExtraBadgeOffsetY;
-        var extraScale = ExtraBadgeFontScale;
-
-        var tempFormat = string.IsNullOrWhiteSpace(TempBadgeFormat) ? def.TempBadgeFormat : TempBadgeFormat.Trim();
-        var uvFormat = string.IsNullOrWhiteSpace(CornerUvFormat) ? def.CornerUvFormat : CornerUvFormat.Trim();
-        var rhFormat = string.IsNullOrWhiteSpace(CornerHumidityFormat) ? def.CornerHumidityFormat : CornerHumidityFormat.Trim();
-        var extraFormat = string.IsNullOrWhiteSpace(ExtraBadgeFormat) ? def.ExtraBadgeFormat : ExtraBadgeFormat.Trim();
 
         if (string.Equals(newCity, Settings.City, StringComparison.OrdinalIgnoreCase))
         {
@@ -1167,25 +932,9 @@ public sealed class PanelViewModel : ObservableObject
             {
                 City = newCity,
                 RefreshInterval = refresh,
-                IconCornerMetric = IconCornerMetric,
-                TempBadgeOffsetX = tempOffsetX,
-                TempBadgeOffsetY = tempOffsetY,
-                TempBadgeFontScale = tempScale,
-                TempBadgeFormat = tempFormat,
-                CornerBadgeOffsetX = cornerOffsetX,
-                CornerBadgeOffsetY = cornerOffsetY,
-                CornerBadgeFontScale = cornerScale,
-                CornerUvFormat = uvFormat,
-                CornerHumidityFormat = rhFormat,
-                ExtraBadgeEnabled = extraEnabled,
-                ExtraBadgeOffsetX = extraOffsetX,
-                ExtraBadgeOffsetY = extraOffsetY,
-                ExtraBadgeFontScale = extraScale,
-                ExtraBadgeFormat = extraFormat,
                 AutoStart = AutoStart,
                 StartHidden = StartHidden,
                 ThemeMode = ThemeMode,
-                IconDisplayMode = IconDisplayMode,
             };
 
             _settingsStore.Save(Settings);
@@ -1213,25 +962,9 @@ public sealed class PanelViewModel : ObservableObject
                 Latitude = resolved.Latitude,
                 Longitude = resolved.Longitude,
                 RefreshInterval = refresh,
-                IconCornerMetric = IconCornerMetric,
-                TempBadgeOffsetX = tempOffsetX,
-                TempBadgeOffsetY = tempOffsetY,
-                TempBadgeFontScale = tempScale,
-                TempBadgeFormat = tempFormat,
-                CornerBadgeOffsetX = cornerOffsetX,
-                CornerBadgeOffsetY = cornerOffsetY,
-                CornerBadgeFontScale = cornerScale,
-                CornerUvFormat = uvFormat,
-                CornerHumidityFormat = rhFormat,
-                ExtraBadgeEnabled = extraEnabled,
-                ExtraBadgeOffsetX = extraOffsetX,
-                ExtraBadgeOffsetY = extraOffsetY,
-                ExtraBadgeFontScale = extraScale,
-                ExtraBadgeFormat = extraFormat,
                 AutoStart = AutoStart,
                 StartHidden = StartHidden,
                 ThemeMode = ThemeMode,
-                IconDisplayMode = IconDisplayMode,
             };
 
             _settingsStore.Save(Settings);
