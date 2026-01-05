@@ -113,10 +113,28 @@ public sealed class NativeTaskbarWindow : IDisposable
             // 应用用户设置的左右偏移
             var offsetX = (int)_panelViewModel.Settings.EmbeddedOffsetX;
             int tx = notifyX - _width - 8 + offsetX, ty = rt.Top + (rt.Height - _height) / 2;
-            if (!force && tx == _lastX && ty == _lastY) { SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010); return; }
+            // 任务栏/通知区右键菜单弹出期间，避免频繁“置顶保活”打乱菜单的 Z 顺序，导致菜单被遮挡。
+            var popupMenu = FindWindow("#32768", null);
+            var popupMenuVisible = popupMenu != IntPtr.Zero && IsWindowVisible(popupMenu);
+
+            if (!force && tx == _lastX && ty == _lastY)
+            {
+                if (!popupMenuVisible)
+                {
+                    SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010);
+                }
+                return;
+            }
 
             _lastX = tx; _lastY = ty;
-            SetWindowPos(_hwnd, new IntPtr(-1), tx, ty, _width, _height, 0x0010 | 0x0040);
+            if (popupMenuVisible)
+            {
+                SetWindowPos(_hwnd, IntPtr.Zero, tx, ty, _width, _height, 0x0010 | 0x0040 | 0x0004);
+            }
+            else
+            {
+                SetWindowPos(_hwnd, new IntPtr(-1), tx, ty, _width, _height, 0x0010 | 0x0040);
+            }
             Invalidate();
         }
         catch { }

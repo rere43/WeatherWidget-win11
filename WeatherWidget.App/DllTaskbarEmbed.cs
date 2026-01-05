@@ -64,6 +64,9 @@ public sealed class DllTaskbarEmbed : IDisposable
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT lpPoint);
 
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT { public int X, Y; }
 
@@ -81,6 +84,13 @@ public sealed class DllTaskbarEmbed : IDisposable
     private const int SW_SHOWNOACTIVATE = 4;
 
     #endregion
+
+    private static bool IsPopupMenuVisible()
+    {
+        // 通知区/任务栏右键菜单通常是 #32768；置顶保活如果在菜单显示期间反复抬升，会导致菜单被遮挡。
+        var menu = FindWindow("#32768", null);
+        return menu != IntPtr.Zero && IsWindowVisible(menu);
+    }
 
     private readonly PanelViewModel _panelViewModel;
     private readonly IconRenderer _iconRenderer;
@@ -154,6 +164,11 @@ public sealed class DllTaskbarEmbed : IDisposable
             {
                 if (_hwnd != IntPtr.Zero && !_disposed)
                 {
+                    if (IsPopupMenuVisible())
+                    {
+                        return;
+                    }
+
                     TaskbarEmbed_BringToTop(_hwnd);
                 }
             }, null, 500, 200);
