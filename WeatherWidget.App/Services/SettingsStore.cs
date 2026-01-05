@@ -72,6 +72,16 @@ public sealed class SettingsStore
             ? Math.Clamp(settings.EmbeddedOffsetX, -300, 300)
             : def.EmbeddedOffsetX;
 
+        // 兼容历史版本：嵌入模式下 UV 间距曾复用 TempBadgeOffsetY
+        var embeddedUvGapRaw = double.IsFinite(settings.EmbeddedUvToWeatherGap)
+            ? settings.EmbeddedUvToWeatherGap
+            : settings.IconDisplayMode == IconDisplayMode.Embedded
+                ? tempOffsetY
+                : def.EmbeddedUvToWeatherGap;
+        var embeddedUvGap = double.IsFinite(embeddedUvGapRaw)
+            ? Math.Clamp(embeddedUvGapRaw, 2, 40)
+            : def.EmbeddedUvToWeatherGap;
+
         var embeddedTextLayout = Enum.IsDefined(typeof(EmbeddedTextLayout), settings.EmbeddedTextLayout)
             ? settings.EmbeddedTextLayout
             : def.EmbeddedTextLayout;
@@ -137,6 +147,7 @@ public sealed class SettingsStore
             ExtraBadgeColor = settings.ExtraBadgeColor,
             EmbeddedIconScale = embeddedIconScale,
             EmbeddedOffsetX = embeddedOffsetX,
+            EmbeddedUvToWeatherGap = embeddedUvGap,
             EmbeddedTextLayout = embeddedTextLayout,
             EmbeddedTextAlignment = embeddedTextAlignment,
         };

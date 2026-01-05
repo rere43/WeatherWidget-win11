@@ -128,6 +128,15 @@ public partial class MainWindow : Window
             AppLogger.Info("Startup: AutoStart detected, suppressing first activation");
         }
 
+        // 嵌入模式下隐藏主程序任务栏图标和窗口
+        if (_panelViewModel.Settings.IconDisplayMode == Models.IconDisplayMode.Embedded)
+        {
+            ShowInTaskbar = false;
+            WindowStyle = WindowStyle.None;
+            Width = 0;
+            Height = 0;
+        }
+
         TaskbarItemInfo = new TaskbarItemInfo();
 
         Loaded += OnLoaded;
@@ -137,10 +146,22 @@ public partial class MainWindow : Window
         Closed += OnClosed;
 
         _panelViewModel.WeatherUpdated += (_, __) => UpdateTaskbarVisuals();
+
+        // 监听图标模式变化，动态切换任务栏图标显示
+        _panelViewModel.IconDisplayModeChanged += (_, __) =>
+        {
+            var isEmbedded = _panelViewModel.IconDisplayMode == Models.IconDisplayMode.Embedded;
+            ShowInTaskbar = !isEmbedded;
+            Visibility = isEmbedded ? Visibility.Collapsed : Visibility.Visible;
+        };
     }
 
     private void OnActivated(object? sender, EventArgs e)
     {
+        // 嵌入模式下不响应激活事件
+        if (_panelViewModel.Settings.IconDisplayMode == Models.IconDisplayMode.Embedded)
+            return;
+
         if (_suppressFirstActivation)
         {
             _suppressFirstActivation = false;
@@ -246,6 +267,14 @@ public partial class MainWindow : Window
         Left = -10_000;
         Top = -10_000;
         WindowState = WindowState.Minimized;
+
+        // 嵌入模式下：确保窗口不在任务栏显示（Show 之后再次设置）
+        if (_panelViewModel.Settings.IconDisplayMode == Models.IconDisplayMode.Embedded)
+        {
+            ShowInTaskbar = false;
+            Hide(); // 完全隐藏窗口，不仅仅是最小化
+            AppLogger.Info("MainWindow hidden for embedded mode");
+        }
 
         // 注意：WPF 在 Application.OnStartup 期间 Show() 窗口时，Loaded 可能早于消息循环稳定期。
         // RenderTargetBitmap.Render 在此阶段可能渲染出全透明位图（表现为任务栏黑图标）。

@@ -62,6 +62,7 @@ public sealed class PanelViewModel : ObservableObject
     private IconDisplayMode _iconDisplayMode;
     private double _embeddedIconScale;
     private double _embeddedOffsetX;
+    private double _embeddedUvToWeatherGap;
     private EmbeddedTextLayout _embeddedTextLayout;
     private EmbeddedTextAlignment _embeddedTextAlignment;
     private readonly DispatcherTimer _settingsSaveTimer;
@@ -142,6 +143,7 @@ public sealed class PanelViewModel : ObservableObject
         _iconDisplayMode = Settings.IconDisplayMode;
         _embeddedIconScale = Settings.EmbeddedIconScale;
         _embeddedOffsetX = Settings.EmbeddedOffsetX;
+        _embeddedUvToWeatherGap = Settings.EmbeddedUvToWeatherGap;
         _embeddedTextLayout = Settings.EmbeddedTextLayout;
         _embeddedTextAlignment = Settings.EmbeddedTextAlignment;
 
@@ -760,6 +762,23 @@ public sealed class PanelViewModel : ObservableObject
             }
 
             Settings = Settings with { EmbeddedOffsetX = value };
+            ScheduleSettingsSave();
+            WeatherUpdated?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public double EmbeddedUvToWeatherGap
+    {
+        get => _embeddedUvToWeatherGap;
+        set
+        {
+            value = Math.Clamp(value, 2, 40);
+            if (!SetProperty(ref _embeddedUvToWeatherGap, value))
+            {
+                return;
+            }
+
+            Settings = Settings with { EmbeddedUvToWeatherGap = value };
             ScheduleSettingsSave();
             WeatherUpdated?.Invoke(this, EventArgs.Empty);
         }

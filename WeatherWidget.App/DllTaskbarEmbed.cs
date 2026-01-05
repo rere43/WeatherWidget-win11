@@ -61,6 +61,12 @@ public sealed class DllTaskbarEmbed : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left, Top, Right, Bottom; public int Width => Right - Left; public int Height => Bottom - Top; }
 
@@ -82,17 +88,21 @@ public sealed class DllTaskbarEmbed : IDisposable
     private System.Threading.Timer? _updateTimer;
     private System.Threading.Timer? _visibilityTimer;
     private System.Threading.Timer? _topMostTimer;  // 专门用于保持置顶
+    private System.Threading.Timer? _hoverTimer;    // 悬停检测定时器
     private int _width = 180;
     private int _height = 64;  // 增大高度容纳图标和文字
     private byte[]? _bitmapBuffer;
     private bool _disposed;
+    private bool _isHovering;
+    private Action<bool>? _onHoverChanged;  // 悬停状态变化回调
 
     public bool IsCreated => _hwnd != IntPtr.Zero;
 
-    public DllTaskbarEmbed(PanelViewModel panelViewModel, IconRenderer iconRenderer)
+    public DllTaskbarEmbed(PanelViewModel panelViewModel, IconRenderer iconRenderer, Action<bool>? onHoverChanged = null)
     {
         _panelViewModel = panelViewModel;
         _iconRenderer = iconRenderer;
+        _onHoverChanged = onHoverChanged;
     }
 
     public bool TryCreate()
@@ -146,6 +156,12 @@ public sealed class DllTaskbarEmbed : IDisposable
                     TaskbarEmbed_BringToTop(_hwnd);
                 }
             }, null, 500, 200);
+
+            // 悬停检测定时器（100ms轮询鼠标位置）
+            _hoverTimer = new System.Threading.Timer(_ =>
+            {
+                Application.Current?.Dispatcher?.BeginInvoke(CheckHover);
+            }, null, 500, 100);
 
             // 订阅天气更新
             _panelViewModel.WeatherUpdated += OnWeatherUpdated;
@@ -277,12 +293,32 @@ public sealed class DllTaskbarEmbed : IDisposable
             var fontFamily = new FontFamily(string.IsNullOrWhiteSpace(settings.BadgeFontFamily) ? "Segoe UI" : settings.BadgeFontFamily);
             var typeface = new Typeface(fontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
-            // 布局：[UV进度条] [天气图标] [温度/湿度2行]
+            // 配置项复用：
+            // TempBadgeOffsetX = 温湿度行间距
+            // EmbeddedUvToWeatherGap = UV条与图标间距（旧版复用 TempBadgeOffsetY）
+            // CornerBadgeOffsetX = 图标与文字间距
+            // CornerBadgeOffsetY = UV数字字号缩放（默认2.0）
+            var lineSpacing = settings.TempBadgeOffsetX;
+            var uvToIconGapRaw = double.IsFinite(settings.EmbeddedUvToWeatherGap) ? settings.EmbeddedUvToWeatherGap : settings.TempBadgeOffsetY;
+            var uvToIconGap = Math.Max(uvToIconGapRaw, 2);
+            var iconToTextGap = Math.Max(settings.CornerBadgeOffsetX, 2);
+            var uvFontScale = settings.CornerBadgeOffsetY < 0.5 ? 2.0 : settings.CornerBadgeOffsetY; // 默认2.0，最小0.5
+
+            // 布局：[UV进度条+数字] [天气图标] [温度/湿度2行]
             var padding = 4;
             var uvBarWidth = 12;
-            var uvBarHeight = _height - 16;
+
+            // UV数字字号（基础8px * 缩放因子）
+            var uvFontSize = 8 * uvFontScale;
+            var uvText = $"{Math.Clamp(now.UvIndex ?? 0, 0, 11):0.#}";
+            var uvFt = new FormattedText(uvText, System.Globalization.CultureInfo.CurrentUICulture,
+                FlowDirection.LeftToRight, typeface, uvFontSize, Brushes.White, 1.0);
+
+            // 进度条高度需要避让UV数字
+            var uvTextHeight = uvFt.Height + 2;
+            var uvBarHeight = _height - 8 - uvTextHeight;
             var uvBarX = padding;
-            var uvBarY = 6;
+            var uvBarY = 4;
 
             // 1. 绘制UV竖向进度条（左侧）
             var uvValue = Math.Clamp(now.UvIndex ?? 0, 0, 11);
@@ -306,15 +342,11 @@ public sealed class DllTaskbarEmbed : IDisposable
                     3, 3);
             }
 
-            // UV数字（进度条下方）
-            var uvFontSize = 8;
-            var uvText = $"{uvValue:0.#}";
-            var uvFt = new FormattedText(uvText, System.Globalization.CultureInfo.CurrentUICulture,
-                FlowDirection.LeftToRight, typeface, uvFontSize, Brushes.White, 1.0);
+            // UV数字（进度条下方，居中）
             ctx.DrawText(uvFt, new Point(uvBarX + (uvBarWidth - uvFt.Width) / 2, uvBarY + uvBarHeight + 1));
 
-            // 2. 天气图标（UV进度条右侧）
-            var iconX = uvBarX + uvBarWidth + 4;
+            // 2. 天气图标（UV进度条右侧，应用间距配置）
+            var iconX = uvBarX + uvBarWidth + uvToIconGap;
             var baseIconSize = Math.Min(_height - 8, 48);
             var iconSize = (int)(baseIconSize * settings.EmbeddedIconScale);
             iconSize = Math.Clamp(iconSize, 16, _height - 4);
@@ -324,24 +356,30 @@ public sealed class DllTaskbarEmbed : IDisposable
             ctx.DrawImage(weatherArt, new Rect(iconX, (_height - iconSize) / 2.0, iconSize, iconSize));
 
             // 3. 文字区域（2行：温度、湿度，Y轴居中）
-            var textX = iconX + iconSize + 6;
+            var textX = iconX + iconSize + iconToTextGap;
             var tempColor = ParseColor(settings.TempBadgeColor, Colors.White);
             var humidityColor = ParseColor(settings.CornerBadgeColor, Colors.White);
 
-            // 2行布局，整体垂直居中
-            var lineHeight = Math.Min((_height - 8) / 2.0, 20);
-            var fontSize = Math.Min(lineHeight * 0.9, 14) * settings.TempBadgeFontScale;
-            var totalTextHeight = lineHeight * 2;
+            // 2行布局，整体垂直居中，应用行间距
+            var baseFontSize = Math.Min((_height - 8) / 2.0 * 0.9, 14);
+            var fontSize = baseFontSize * settings.TempBadgeFontScale;
+            var humidityFontSize = baseFontSize * settings.CornerBadgeFontScale;
+
+            // 计算实际文字高度
+            var tempText = settings.TempBadgeFormat.Replace("{value}", $"{Math.Round(now.TemperatureC):0}");
+            var humidityText = (settings.CornerHumidityFormat ?? "{value}%").Replace("{value}", $"{now.RelativeHumidityPercent:0}");
+
+            var ft1 = new FormattedText(tempText, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, fontSize, new SolidColorBrush(tempColor), 1.0);
+            var ft2 = new FormattedText(humidityText, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, humidityFontSize, new SolidColorBrush(humidityColor), 1.0);
+
+            var totalTextHeight = ft1.Height + lineSpacing + ft2.Height;
             var textStartY = (_height - totalTextHeight) / 2.0;
 
             // 第1行：温度
-            var tempText = settings.TempBadgeFormat.Replace("{value}", $"{Math.Round(now.TemperatureC):0}");
             DrawTextWithStroke(ctx, tempText, textX, textStartY, fontSize, typeface, tempColor, settings.BadgeStrokeWidth);
 
-            // 第2行：湿度
-            var humidityText = (settings.CornerHumidityFormat ?? "{value}%").Replace("{value}", $"{now.RelativeHumidityPercent:0}");
-            var humidityFontSize = fontSize * settings.CornerBadgeFontScale;
-            DrawTextWithStroke(ctx, humidityText, textX, textStartY + lineHeight, humidityFontSize, typeface, humidityColor, settings.BadgeStrokeWidth);
+            // 第2行：湿度（应用行间距）
+            DrawTextWithStroke(ctx, humidityText, textX, textStartY + ft1.Height + lineSpacing, humidityFontSize, typeface, humidityColor, settings.BadgeStrokeWidth);
         }
 
         var bmp = new RenderTargetBitmap(_width, _height, 96, 96, PixelFormats.Pbgra32);
@@ -412,6 +450,26 @@ public sealed class DllTaskbarEmbed : IDisposable
         }
     }
 
+    private void CheckHover()
+    {
+        if (_hwnd == IntPtr.Zero || _disposed) return;
+
+        try
+        {
+            if (!GetCursorPos(out var pt)) return;
+            if (!GetWindowRect(_hwnd, out var rect)) return;
+
+            var isInside = pt.X >= rect.Left && pt.X <= rect.Right && pt.Y >= rect.Top && pt.Y <= rect.Bottom;
+
+            if (isInside != _isHovering)
+            {
+                _isHovering = isInside;
+                _onHoverChanged?.Invoke(isInside);
+            }
+        }
+        catch { }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -420,6 +478,8 @@ public sealed class DllTaskbarEmbed : IDisposable
         _panelViewModel.WeatherUpdated -= OnWeatherUpdated;
         _updateTimer?.Dispose();
         _visibilityTimer?.Dispose();
+        _topMostTimer?.Dispose();
+        _hoverTimer?.Dispose();
         _topMostTimer?.Dispose();
 
         if (_hwnd != IntPtr.Zero)

@@ -76,6 +76,52 @@ public static class TaskbarAnchor
         return ClampToWorkArea(leftDip, topDip, panelWidthDip, panelHeightDip);
     }
 
+    public static (double Left, double Top) GetTaskbarAnchorNearPointPx(
+        double panelWidthDip,
+        double panelHeightDip,
+        double dpiScaleX,
+        double dpiScaleY,
+        double anchorPxX,
+        double anchorPxY)
+    {
+        dpiScaleX = dpiScaleX <= 0 ? 1 : dpiScaleX;
+        dpiScaleY = dpiScaleY <= 0 ? 1 : dpiScaleY;
+
+        var data = new APPBARDATA
+        {
+            cbSize = (uint)Marshal.SizeOf<APPBARDATA>(),
+        };
+
+        const double marginDip = 12;
+        var marginPxX = marginDip * dpiScaleX;
+        var marginPxY = marginDip * dpiScaleY;
+        var panelWidthPx = panelWidthDip * dpiScaleX;
+        var panelHeightPx = panelHeightDip * dpiScaleY;
+
+        var result = SHAppBarMessage(ABM_GETTASKBARPOS, ref data);
+        if (result == 0)
+        {
+            var leftFallback = anchorPxX / dpiScaleX - panelWidthDip / 2;
+            var topFallback = anchorPxY / dpiScaleY - panelHeightDip / 2;
+            return ClampToWorkArea(leftFallback, topFallback, panelWidthDip, panelHeightDip);
+        }
+
+        var rc = data.rc;
+
+        (double leftPx, double topPx) = data.uEdge switch
+        {
+            ABE.Bottom => (leftPx: anchorPxX - panelWidthPx / 2, topPx: rc.top - panelHeightPx - marginPxY),
+            ABE.Top => (leftPx: anchorPxX - panelWidthPx / 2, topPx: rc.bottom + marginPxY),
+            ABE.Left => (leftPx: rc.right + marginPxX, topPx: anchorPxY - panelHeightPx / 2),
+            ABE.Right => (leftPx: rc.left - panelWidthPx - marginPxX, topPx: anchorPxY - panelHeightPx / 2),
+            _ => (leftPx: anchorPxX - panelWidthPx / 2, topPx: anchorPxY - panelHeightPx / 2),
+        };
+
+        var leftDip = leftPx / dpiScaleX;
+        var topDip = topPx / dpiScaleY;
+        return ClampToWorkArea(leftDip, topDip, panelWidthDip, panelHeightDip);
+    }
+
     private static (double Left, double Top) ClampToWorkArea(double Left, double Top, double panelWidthDip, double panelHeightDip)
     {
         const double marginDip = 12;

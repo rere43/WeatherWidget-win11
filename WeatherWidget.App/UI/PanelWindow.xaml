@@ -131,8 +131,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="文字布局" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
                                         <ComboBox Grid.Column="1" SelectedValue="{Binding EmbeddedTextLayout}" SelectedValuePath="Tag" Margin="6,0,0,0">
-                                            <ComboBoxItem Content="单行" Tag="{x:Static models:EmbeddedTextLayout.SingleLine}" />
-                                            <ComboBoxItem Content="三行" Tag="{x:Static models:EmbeddedTextLayout.ThreeLines}" />
+                                            <ComboBoxItem Content="两行" Tag="{x:Static models:EmbeddedTextLayout.TwoLines}" />
                                         </ComboBox>
                                     </Grid>
                                     <Grid Margin="0,6,0,0">
@@ -168,6 +167,17 @@
                                         <Slider Grid.Column="1" Minimum="-300" Maximum="300" TickFrequency="10" IsSnapToTickEnabled="True"
                                                 Value="{Binding EmbeddedOffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
                                         <TextBlock Grid.Column="2" Text="{Binding EmbeddedOffsetX, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="48" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="UV-天气间距" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="2" Maximum="40" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedUvToWeatherGap, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedUvToWeatherGap, StringFormat=0}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                     </Grid>
                                 </StackPanel>
                             </Border>

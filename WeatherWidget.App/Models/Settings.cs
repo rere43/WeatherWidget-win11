@@ -51,8 +51,7 @@ public enum IconDisplayMode
 
 public enum EmbeddedTextLayout
 {
-    SingleLine = 0, // 一行显示：图标 + 温度/副角标/额外角标横向排布
-    ThreeLines = 1, // 三行显示：文字区按 3 行排列
+    TwoLines = 0,   // 两行显示：温度+湿度（当前固定）
 }
 
 public enum EmbeddedTextAlignment
@@ -68,14 +67,18 @@ public sealed record Settings(
     double Longitude,
     IconCornerMetric IconCornerMetric,
     TimeSpan RefreshInterval,
+    // 嵌入模式：温湿度行间距（复用TempBadgeOffsetX）
     double TempBadgeOffsetX = 0,
-    double TempBadgeOffsetY = 0,
+    // 嵌入模式：UV条与图标间距（复用TempBadgeOffsetY）
+    double TempBadgeOffsetY = 4,
     double TempBadgeFontScale = 1.0,
     string TempBadgeFormat = "{value}°",
     BadgePosition TempBadgePosition = BadgePosition.TopRight,
     string TempBadgeColor = "#FFFFFFFF",
-    double CornerBadgeOffsetX = 0,
-    double CornerBadgeOffsetY = 0,
+    // 嵌入模式：图标与文字间距（复用CornerBadgeOffsetX）
+    double CornerBadgeOffsetX = 6,
+    // 嵌入模式：UV数字字号缩放（复用CornerBadgeOffsetY，默认2.0）
+    double CornerBadgeOffsetY = 2.0,
     double CornerBadgeFontScale = 1.0,
     string CornerUvFormat = "UV{value}",
     string CornerHumidityFormat = "{value}%",
@@ -100,7 +103,9 @@ public sealed record Settings(
     bool StartHidden = false,
     double EmbeddedIconScale = 1.0,
     double EmbeddedOffsetX = 0,
-    EmbeddedTextLayout EmbeddedTextLayout = EmbeddedTextLayout.SingleLine,
+    // 嵌入模式：UV条与天气图标间距（历史版本复用 TempBadgeOffsetY）
+    double EmbeddedUvToWeatherGap = double.NaN,
+    EmbeddedTextLayout EmbeddedTextLayout = EmbeddedTextLayout.TwoLines,
     EmbeddedTextAlignment EmbeddedTextAlignment = EmbeddedTextAlignment.Left)
 {
     public static Settings Default =>
@@ -109,5 +114,6 @@ public sealed record Settings(
             Latitude: 31.2304,
             Longitude: 121.4737,
             IconCornerMetric: IconCornerMetric.UvIndex,
-            RefreshInterval: TimeSpan.FromMinutes(10));
+            RefreshInterval: TimeSpan.FromMinutes(10),
+            EmbeddedUvToWeatherGap: 4);
 }
