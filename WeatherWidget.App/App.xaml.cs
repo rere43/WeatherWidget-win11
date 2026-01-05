@@ -60,26 +60,18 @@ public partial class App : Application
 
         void CreateEmbeddedModeWindows()
         {
-            // Win11：优先使用真正嵌入任务栏的子窗口方案（参考 TrafficMonitor），避免悬浮置顶窗口被遮挡/需要高频“可见性抢救”。
-            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+            // 方案1：NativeTaskbarWindow (纯 C# 实现，已修复 Win11 遮挡问题)
+            _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
+            if (_nativeTaskbarWindow.TryCreate())
             {
-                _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
-                if (_nativeTaskbarWindow.TryCreate())
-                {
-                    AppLogger.Info("NativeTaskbarWindow created for embedded mode (Win11)");
-                    return;
-                }
-
-                _nativeTaskbarWindow.Dispose();
-                _nativeTaskbarWindow = null;
-
-                _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
-                _embedWindow.Show();
-                AppLogger.Info("TaskbarEmbedWindow created for embedded mode (Win11 fallback)");
+                AppLogger.Info("NativeTaskbarWindow created for embedded mode");
                 return;
             }
 
-            // Win10/其它：优先尝试 DLL 分层窗口实现（透明/鼠标穿透）
+            _nativeTaskbarWindow.Dispose();
+            _nativeTaskbarWindow = null;
+
+            // 方案2：DLL 分层窗口实现（透明/鼠标穿透）
             _dllTaskbarEmbed = new DllTaskbarEmbed(panelViewModel, iconRenderer);
             if (_dllTaskbarEmbed.TryCreate())
             {
@@ -90,15 +82,7 @@ public partial class App : Application
             _dllTaskbarEmbed.Dispose();
             _dllTaskbarEmbed = null;
 
-            _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer);
-            if (_nativeTaskbarWindow.TryCreate())
-            {
-                AppLogger.Info("NativeTaskbarWindow created for embedded mode (fallback 1)");
-                return;
-            }
-
-            _nativeTaskbarWindow.Dispose();
-            _nativeTaskbarWindow = null;
+            // 回退方案3：WPF 悬浮窗口
             _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
             _embedWindow.Show();
             AppLogger.Info("TaskbarEmbedWindow created for embedded mode (fallback 2)");

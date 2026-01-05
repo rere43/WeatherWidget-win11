@@ -93,20 +93,33 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         return 0;
 
-    case WM_LBUTTONDOWN:
-    case WM_RBUTTONDOWN:
-    case WM_LBUTTONUP:
-    case WM_RBUTTONUP:
-        // 忽略点击，防止窗口被隐藏
-        return 0;
-
     case WM_MOUSEACTIVATE:
         // 防止激活窗口
-        return MA_NOACTIVATE;
+        return MA_NOACTIVATEANDEAT;
 
     case WM_NCHITTEST:
-        // 让鼠标穿透
+        // 让所有鼠标事件穿透到下层窗口
         return HTTRANSPARENT;
+
+    // 所有鼠标消息都不处理，直接穿透
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_LBUTTONDBLCLK:
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONUP:
+    case WM_RBUTTONDBLCLK:
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
+    case WM_MBUTTONDBLCLK:
+    case WM_MOUSEMOVE:
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL:
+        // 不应该收到这些消息（因为 HTTRANSPARENT），但如果收到就忽略
+        return 0;
+
+    case WM_SETCURSOR:
+        // 不设置光标，让下层窗口处理
+        return FALSE;
     }
 
     return DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -227,7 +240,7 @@ TASKBAREMBED_API HWND TaskbarEmbed_Create(int width, int height) {
         L"WeatherEmbed",
         WS_POPUP | WS_VISIBLE,
         screenX, screenY, width, height,
-        NULL,
+        NULL,  // 无 owner
         NULL,
         g_hInstance,
         NULL
@@ -319,6 +332,12 @@ TASKBAREMBED_API BOOL TaskbarEmbed_UpdateBitmap(HWND hwnd, const void* bitmapDat
     DeleteDC(hdcMem);
     ReleaseDC(NULL, hdcScreen);
 
+    // 每次更新内容后确保窗口置顶（防止被预览窗口遮挡）
+    if (result) {
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
     return result;
 }
 
@@ -388,7 +407,7 @@ static int GetNotifyAreaLeft(HWND taskbar, const RECT& taskbarRect) {
     return notifyLeft;
 }
 
-TASKBAREMBED_API BOOL TaskbarEmbed_AdjustPosition(HWND hwnd, int width, int height) {
+TASKBAREMBED_API BOOL TaskbarEmbed_AdjustPosition(HWND hwnd, int width, int height, int offsetX) {
     if (!hwnd || !IsWindow(hwnd)) {
         return FALSE;
     }
@@ -410,8 +429,8 @@ TASKBAREMBED_API BOOL TaskbarEmbed_AdjustPosition(HWND hwnd, int width, int heig
     // 获取通知区左边缘
     int notifyLeft = GetNotifyAreaLeft(taskbar, taskbarRect);
 
-    // 计算新位置（通知区左边）
-    int screenX = notifyLeft - width - 10;
+    // 计算新位置（通知区左边 + 用户偏移）
+    int screenX = notifyLeft - width - 10 + offsetX;
     int screenY = taskbarRect.top + (taskbarHeight - height) / 2;
 
     // 确保不超出任务栏左边界
@@ -425,8 +444,8 @@ TASKBAREMBED_API BOOL TaskbarEmbed_AdjustPosition(HWND hwnd, int width, int heig
         // 只有位置变化时才更新
         if (currentRect.left != screenX || currentRect.top != screenY) {
             wchar_t dbg[256];
-            swprintf_s(dbg, L"TaskbarEmbed: Adjusting position from (%d,%d) to (%d,%d)\n",
-                currentRect.left, currentRect.top, screenX, screenY);
+            swprintf_s(dbg, L"TaskbarEmbed: Adjusting position from (%d,%d) to (%d,%d), offsetX=%d\n",
+                currentRect.left, currentRect.top, screenX, screenY, offsetX);
             OutputDebugStringW(dbg);
 
             SetWindowPos(hwnd, HWND_TOPMOST, screenX, screenY, 0, 0,
@@ -435,4 +454,21 @@ TASKBAREMBED_API BOOL TaskbarEmbed_AdjustPosition(HWND hwnd, int width, int heig
     }
 
     return TRUE;
+}
+
+TASKBAREMBED_API void TaskbarEmbed_BringToTop(HWND hwnd) {
+    if (!hwnd || !IsWindow(hwnd)) {
+        return;
+    }
+
+    // 检查窗口是否可见
+    if (!IsWindowVisible(hwnd)) {
+        // 窗口被隐藏了，重新显示
+        ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        OutputDebugStringW(L"TaskbarEmbed: Window was hidden, showing again\n");
+    }
+
+    // 强制置顶
+    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
 }
