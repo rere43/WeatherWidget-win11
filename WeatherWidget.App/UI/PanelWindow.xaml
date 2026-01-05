@@ -190,6 +190,17 @@
                                                 Value="{Binding EmbeddedHoverDelayMs, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
                                         <TextBlock Grid.Column="2" Text="{Binding EmbeddedHoverDelayMs, StringFormat={}{0}ms}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                     </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="72" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="悬停固定时间" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="2000" TickFrequency="50" IsSnapToTickEnabled="True"
+                                                Value="{Binding EmbeddedHoverPinMs, UpdateSourceTrigger=PropertyChanged}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding EmbeddedHoverPinMs, StringFormat={}{0}ms}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 
@@ -492,6 +503,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0">
@@ -755,10 +767,20 @@
                                  </StackPanel>
                              </StackPanel>
                          </Border>
-                     </StackPanel>
-                 </Grid>
-             </Grid>
-         </Border>
+                    </StackPanel>
+                </Grid>
+
+                <ProgressBar Grid.Row="2"
+                             Height="6"
+                             Margin="0,12,0,0"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="{Binding HoverPinProgressPercent}"
+                             Foreground="#FFDA70D6"
+                             Background="{DynamicResource SoftPanelBrush}"
+                             Visibility="{Binding IsHoverPinProgressVisible, Converter={StaticResource BoolToVis}}" />
+            </Grid>
+        </Border>
 
         <!-- 日志面板（主面板左侧） -->
         <Border Grid.Column="2"

@@ -130,6 +130,87 @@ public partial class App : Application
         var panelViewModel = new PanelViewModel(settingsStore, settings, weatherRepository, clothingAdvisor, geocodingClient);
         var panelWindow = new PanelWindow { DataContext = panelViewModel };
 
+        var embeddedIsHoveringNow = false;
+        var embeddedIsPinned = false;
+        var embeddedPinDurationMs = 0;
+        var embeddedPinStartedAt = DateTimeOffset.MinValue;
+
+        var embeddedHoverDelayTimer = new DispatcherTimer();
+        var embeddedPinTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
+
+        void ResetEmbeddedPin()
+        {
+            embeddedIsPinned = false;
+            embeddedPinDurationMs = 0;
+            embeddedPinStartedAt = DateTimeOffset.MinValue;
+
+            panelViewModel.IsHoverPinProgressVisible = false;
+            panelViewModel.HoverPinProgressPercent = 0;
+
+            embeddedPinTimer.Stop();
+        }
+
+        void StartEmbeddedPinCountdown()
+        {
+            ResetEmbeddedPin();
+
+            embeddedPinDurationMs = Math.Clamp(panelViewModel.Settings.EmbeddedHoverPinMs, 0, 5000);
+            if (embeddedPinDurationMs <= 0)
+            {
+                embeddedIsPinned = true;
+                return;
+            }
+
+            embeddedPinStartedAt = DateTimeOffset.Now;
+            panelViewModel.IsHoverPinProgressVisible = true;
+            panelViewModel.HoverPinProgressPercent = 0;
+            embeddedPinTimer.Start();
+        }
+
+        void ShowPanelByHover()
+        {
+            if (!embeddedIsHoveringNow || panelWindow.IsVisible)
+            {
+                return;
+            }
+
+            _panelOpenSource = PanelOpenSource.Hover;
+            StartEmbeddedPinCountdown();
+
+            TryPositionPanelToCursor();
+
+            // 悬停触发：不抢焦点（避免打断当前应用输入）
+            panelWindow.ShowActivated = false;
+            panelWindow.Show();
+        }
+
+        embeddedHoverDelayTimer.Tick += (_, __) =>
+        {
+            embeddedHoverDelayTimer.Stop();
+            ShowPanelByHover();
+        };
+
+        embeddedPinTimer.Tick += (_, __) =>
+        {
+            if (!panelWindow.IsVisible || _panelOpenSource != PanelOpenSource.Hover || embeddedPinDurationMs <= 0)
+            {
+                ResetEmbeddedPin();
+                return;
+            }
+
+            var elapsedMs = (DateTimeOffset.Now - embeddedPinStartedAt).TotalMilliseconds;
+            var progress = Math.Clamp(elapsedMs / embeddedPinDurationMs, 0, 1);
+            panelViewModel.HoverPinProgressPercent = progress * 100;
+
+            if (progress >= 1)
+            {
+                embeddedIsPinned = true;
+                panelViewModel.HoverPinProgressPercent = 100;
+                panelViewModel.IsHoverPinProgressVisible = false;
+                embeddedPinTimer.Stop();
+            }
+        };
+
         _globalMouseHook = new GlobalMouseHook();
         _foregroundEventProc = (_, eventType, hwnd, _, _, _, _) =>
         {
@@ -139,11 +220,6 @@ public partial class App : Application
             }
 
             if (!panelWindow.IsVisible || hwnd == IntPtr.Zero)
-            {
-                return;
-            }
-
-            if (_panelOpenSource == PanelOpenSource.Click)
             {
                 return;
             }
@@ -213,30 +289,17 @@ public partial class App : Application
                 {
                     panelWindow.Dispatcher.BeginInvoke(() =>
                     {
+                        embeddedHoverDelayTimer.Stop();
+                        ResetEmbeddedPin();
+
                         if (panelWindow.IsVisible)
                         {
-                            if (_panelOpenSource == PanelOpenSource.Click)
-                            {
-                                panelWindow.Hide();
-                                return;
-                            }
-
-                            // 悬停打开 -> 单击固定（不自动隐藏）
-                            _panelOpenSource = PanelOpenSource.Click;
-                            panelWindow.AutoHideOnDeactivated = false;
-                            panelWindow.ShowActivated = true;
-                            panelWindow.Activate();
-
-                            var hwnd = new WindowInteropHelper(panelWindow).Handle;
-                            if (hwnd != IntPtr.Zero)
-                            {
-                                ForceForegroundWindow(hwnd);
-                            }
+                            panelWindow.Hide();
                             return;
                         }
 
                         _panelOpenSource = PanelOpenSource.Click;
-                        panelWindow.AutoHideOnDeactivated = false;
+                        panelWindow.AutoHideOnDeactivated = true;
                         panelWindow.ShowActivated = true;
 
                         TryPositionPanelToCursor();
@@ -253,8 +316,8 @@ public partial class App : Application
                 }
             }
 
-            // 2) 非固定状态：点击面板外部自动隐藏
-            if (!panelWindow.IsVisible || _panelOpenSource == PanelOpenSource.Click)
+            // 2) 点击面板外部自动隐藏（所有打开方式）
+            if (!panelWindow.IsVisible)
             {
                 return;
             }
@@ -273,7 +336,7 @@ public partial class App : Application
 
             panelWindow.Dispatcher.BeginInvoke(() =>
             {
-                if (panelWindow.IsVisible && _panelOpenSource != PanelOpenSource.Click)
+                if (panelWindow.IsVisible)
                 {
                     panelWindow.Hide();
                 }
@@ -293,7 +356,7 @@ public partial class App : Application
 
                 if (panelWindow.IsVisible)
                 {
-                    panelWindow.AutoHideOnDeactivated = _panelOpenSource != PanelOpenSource.Click;
+                    panelWindow.AutoHideOnDeactivated = true;
 
                     _panelHwnd = new WindowInteropHelper(panelWindow).Handle;
                     _panelShownForegroundHwnd = GetForegroundWindow();
@@ -317,6 +380,9 @@ public partial class App : Application
                 else
                 {
                     panelWindow.AutoHideOnDeactivated = true;
+                    embeddedHoverDelayTimer.Stop();
+                    ResetEmbeddedPin();
+                    embeddedIsHoveringNow = false;
 
                     if (_foregroundEventHook != IntPtr.Zero)
                     {
@@ -369,39 +435,14 @@ public partial class App : Application
         {
             _embeddedTriggerHwnd = IntPtr.Zero;
 
-            var isHoveringNow = false;
-            var hoverDelayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-
-            void ShowPanelByHover()
-            {
-                if (!isHoveringNow)
-                {
-                    return;
-                }
-
-                if (panelWindow.IsVisible)
-                {
-                    return;
-                }
-
-                _panelOpenSource = PanelOpenSource.Hover;
-                TryPositionPanelToCursor();
-
-                // 悬停触发：不抢焦点（避免打断当前应用输入）
-                panelWindow.ShowActivated = false;
-                panelWindow.Show();
-            }
-
-            hoverDelayTimer.Tick += (_, __) =>
-            {
-                hoverDelayTimer.Stop();
-                ShowPanelByHover();
-            };
+            embeddedIsHoveringNow = false;
+            embeddedHoverDelayTimer.Stop();
+            ResetEmbeddedPin();
 
             // 悬停回调：延迟触发显示；移出触发区域立即隐藏（仅对悬停打开的面板）
             void OnHoverChanged(bool isHovering)
             {
-                isHoveringNow = isHovering;
+                embeddedIsHoveringNow = isHovering;
 
                 if (isHovering)
                 {
@@ -411,23 +452,23 @@ public partial class App : Application
                     }
 
                     var delayMs = Math.Clamp(panelViewModel.Settings.EmbeddedHoverDelayMs, 0, 5000);
-                    hoverDelayTimer.Stop();
-                    hoverDelayTimer.Interval = TimeSpan.FromMilliseconds(delayMs);
+                    embeddedHoverDelayTimer.Stop();
+                    embeddedHoverDelayTimer.Interval = TimeSpan.FromMilliseconds(delayMs);
                     if (delayMs <= 0)
                     {
                         ShowPanelByHover();
                     }
                     else
                     {
-                        hoverDelayTimer.Start();
+                        embeddedHoverDelayTimer.Start();
                     }
 
                     return;
                 }
 
-                hoverDelayTimer.Stop();
+                embeddedHoverDelayTimer.Stop();
 
-                if (panelWindow.IsVisible && _panelOpenSource == PanelOpenSource.Hover)
+                if (panelWindow.IsVisible && _panelOpenSource == PanelOpenSource.Hover && !embeddedIsPinned)
                 {
                     panelWindow.Hide();
                 }
@@ -488,6 +529,9 @@ public partial class App : Application
         panelViewModel.IconDisplayModeChanged += (_, _) =>
         {
             _embeddedTriggerHwnd = IntPtr.Zero;
+            embeddedHoverDelayTimer.Stop();
+            ResetEmbeddedPin();
+            embeddedIsHoveringNow = false;
 
             // 先关闭现有的副窗口
             if (_secondaryIconWindow != null)

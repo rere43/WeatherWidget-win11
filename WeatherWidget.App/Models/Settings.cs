@@ -107,6 +107,8 @@ public sealed record Settings(
     double EmbeddedUvToWeatherGap = double.NaN,
     // 悬停触发面板延迟（ms）
     int EmbeddedHoverDelayMs = 500,
+    // 悬停打开面板后，达到该时长则视为“固定”（移出触发区不再自动隐藏）（ms）
+    int EmbeddedHoverPinMs = 500,
     EmbeddedTextLayout EmbeddedTextLayout = EmbeddedTextLayout.TwoLines,
     EmbeddedTextAlignment EmbeddedTextAlignment = EmbeddedTextAlignment.Left)
 {
@@ -118,5 +120,6 @@ public sealed record Settings(
             IconCornerMetric: IconCornerMetric.UvIndex,
             RefreshInterval: TimeSpan.FromMinutes(10),
             EmbeddedUvToWeatherGap: 4,
-            EmbeddedHoverDelayMs: 500);
+            EmbeddedHoverDelayMs: 500,
+            EmbeddedHoverPinMs: 500);
 }

@@ -64,6 +64,7 @@ public sealed class PanelViewModel : ObservableObject
     private double _embeddedOffsetX;
     private double _embeddedUvToWeatherGap;
     private int _embeddedHoverDelayMs;
+    private int _embeddedHoverPinMs;
     private EmbeddedTextLayout _embeddedTextLayout;
     private EmbeddedTextAlignment _embeddedTextAlignment;
     private readonly DispatcherTimer _settingsSaveTimer;
@@ -76,6 +77,8 @@ public sealed class PanelViewModel : ObservableObject
     private string _selectedDayTempSummary = "—";
     private string _selectedDayHumiditySummary = "—";
     private bool _isSettingsPanelVisible;
+    private bool _isHoverPinProgressVisible;
+    private double _hoverPinProgressPercent;
 
     public event EventHandler? WeatherUpdated;
 
@@ -146,6 +149,7 @@ public sealed class PanelViewModel : ObservableObject
         _embeddedOffsetX = Settings.EmbeddedOffsetX;
         _embeddedUvToWeatherGap = Settings.EmbeddedUvToWeatherGap;
         _embeddedHoverDelayMs = Settings.EmbeddedHoverDelayMs;
+        _embeddedHoverPinMs = Settings.EmbeddedHoverPinMs;
         _embeddedTextLayout = Settings.EmbeddedTextLayout;
         _embeddedTextAlignment = Settings.EmbeddedTextAlignment;
 
@@ -208,6 +212,18 @@ public sealed class PanelViewModel : ObservableObject
 
     public string UpdateLogHeaderLine =>
         UpdateLogs.Count == 0 ? "更新日志：—" : $"更新日志：{UpdateLogs[^1]}";
+
+    public bool IsHoverPinProgressVisible
+    {
+        get => _isHoverPinProgressVisible;
+        set => SetProperty(ref _isHoverPinProgressVisible, value);
+    }
+
+    public double HoverPinProgressPercent
+    {
+        get => _hoverPinProgressPercent;
+        set => SetProperty(ref _hoverPinProgressPercent, value);
+    }
 
     public GeoSuggestion? SelectedCitySuggestion
     {
@@ -798,6 +814,22 @@ public sealed class PanelViewModel : ObservableObject
             }
 
             Settings = Settings with { EmbeddedHoverDelayMs = value };
+            ScheduleSettingsSave();
+        }
+    }
+
+    public int EmbeddedHoverPinMs
+    {
+        get => _embeddedHoverPinMs;
+        set
+        {
+            value = Math.Clamp(value, 0, 5000);
+            if (!SetProperty(ref _embeddedHoverPinMs, value))
+            {
+                return;
+            }
+
+            Settings = Settings with { EmbeddedHoverPinMs = value };
             ScheduleSettingsSave();
         }
     }
