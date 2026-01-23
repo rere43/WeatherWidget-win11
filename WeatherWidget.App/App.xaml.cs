@@ -82,6 +82,7 @@ public partial class App : Application
     private TaskbarEmbedWindow? _embedWindow;
     private NativeTaskbarWindow? _nativeTaskbarWindow;
     private DllTaskbarEmbed? _dllTaskbarEmbed;
+    private ChildTaskbarWindow? _childTaskbarWindow;
     private IntPtr _embeddedTriggerHwnd;
 
     private enum PanelOpenSource
@@ -104,6 +105,14 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // 命令行参数：--experiment 启动嵌入方案实验窗口
+        if (e.Args.Contains("--experiment", StringComparer.OrdinalIgnoreCase))
+        {
+            var experimentWindow = new UI.EmbedExperimentWindow();
+            experimentWindow.Show();
+            return;
+        }
 
         // 设置固定的 AppUserModelID，确保任务栏固定后图标能正确关联并动态更新
         _ = SetCurrentProcessExplicitAppUserModelID("MyWeatherWidget.App.v1");
@@ -476,35 +485,22 @@ public partial class App : Application
                 }
             }
 
-            // 方案1：NativeTaskbarWindow (纯 C# 实现，已修复 Win11 遮挡问题)
-            _nativeTaskbarWindow = new NativeTaskbarWindow(panelViewModel, iconRenderer, OnHoverChanged);
-            if (_nativeTaskbarWindow.TryCreate())
+            // 方案：ChildTaskbarWindow (SetParent 子窗口方案)
+            // 优势：无需 TopMost 保活，不遮挡右键菜单，自然跟随任务栏
+            if (_childTaskbarWindow != null) return;
+
+            _childTaskbarWindow = new ChildTaskbarWindow(panelViewModel, iconRenderer, OnHoverChanged);
+            if (_childTaskbarWindow.TryCreate())
             {
-                _embeddedTriggerHwnd = _nativeTaskbarWindow.Handle;
-                AppLogger.Info("NativeTaskbarWindow created for embedded mode");
+                _embeddedTriggerHwnd = _childTaskbarWindow.Handle;
+                AppLogger.Info("ChildTaskbarWindow created for embedded mode");
                 return;
             }
 
-            _nativeTaskbarWindow.Dispose();
-            _nativeTaskbarWindow = null;
+            _childTaskbarWindow.Dispose();
+            _childTaskbarWindow = null;
 
-            // 方案2：DLL 分层窗口实现（透明/鼠标穿透）
-            _dllTaskbarEmbed = new DllTaskbarEmbed(panelViewModel, iconRenderer, OnHoverChanged);
-            if (_dllTaskbarEmbed.TryCreate())
-            {
-                _embeddedTriggerHwnd = _dllTaskbarEmbed.Handle;
-                AppLogger.Info("DllTaskbarEmbed created for embedded mode");
-                return;
-            }
-
-            _dllTaskbarEmbed.Dispose();
-            _dllTaskbarEmbed = null;
-
-            // 回退方案3：WPF 悬浮窗口
-            _embedWindow = new TaskbarEmbedWindow(panelViewModel, iconRenderer);
-            _embedWindow.Show();
-            _embeddedTriggerHwnd = new WindowInteropHelper(_embedWindow).Handle;
-            AppLogger.Info("TaskbarEmbedWindow created for embedded mode (fallback 2)");
+            AppLogger.Info("[ERROR] Failed to create ChildTaskbarWindow");
         }
 
         // 仅保留嵌入任务栏模式
@@ -558,6 +554,13 @@ public partial class App : Application
                 {
                     _settingsStore.Save(_panelViewModel.Settings);
                 }
+            }
+            catch { }
+
+            try
+            {
+                _childTaskbarWindow?.Dispose();
+                _childTaskbarWindow = null;
             }
             catch { }
 
