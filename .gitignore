@@ -23,3 +23,7 @@ Desktop.ini
 /WeatherWidget.App/参考/
 /_refs/
 /TaskbarEmbedDll/build/
+
+# Local scratch
+/.tmp/
+/nul

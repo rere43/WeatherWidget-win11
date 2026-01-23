@@ -316,8 +316,8 @@ public sealed class DllTaskbarEmbed : IDisposable
             var uvFontScale = embedded.UvNumberFontScale < 0.5 ? 2.0 : embedded.UvNumberFontScale; // 默认2.0，最小0.5
 
             // 布局：[UV进度条+数字] [天气图标] [温度/湿度2行]
-            var padding = 4;
-            var uvBarWidth = 12;
+            var basePadding = 4.0;
+            var uvBarWidth = 12.0;
 
             // UV数字字号（基础8px * 缩放因子）
             var uvFontSize = 8 * uvFontScale;
@@ -326,6 +326,9 @@ public sealed class DllTaskbarEmbed : IDisposable
             var uvTextColor = ParseColor(embedded.UvNumberColor, Colors.White);
             var uvFt = new FormattedText(uvText, System.Globalization.CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight, typeface, uvFontSize, new SolidColorBrush(uvTextColor), 1.0);
+
+            // 通过动态 padding 保证：UV数字始终居中对齐进度条，同时避免左侧被裁切（OverhangLeading）
+            var padding = Math.Max(basePadding, (uvFt.WidthIncludingTrailingWhitespace - uvBarWidth) / 2 - uvFt.OverhangLeading + 0.5);
 
             // 进度条高度需要避让UV数字
             var uvTextHeight = uvFt.Height + 2;
@@ -358,7 +361,8 @@ public sealed class DllTaskbarEmbed : IDisposable
             }
 
             // UV数字（进度条下方，居中）
-            ctx.DrawText(uvFt, new Point(uvBarX + (uvBarWidth - uvFt.Width) / 2, uvBarY + uvBarHeight + 1));
+            var uvTextX = uvBarX + (uvBarWidth - uvFt.WidthIncludingTrailingWhitespace) / 2;
+            ctx.DrawText(uvFt, new Point(uvTextX, uvBarY + uvBarHeight + 1));
 
             // 2. 天气图标（UV进度条右侧，应用间距配置）
             var iconX = uvBarX + uvBarWidth + uvToIconGap;

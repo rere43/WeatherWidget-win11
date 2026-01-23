@@ -396,7 +396,7 @@ public partial class TaskbarEmbedWindow : Window
             var iconToTextGap = Math.Max(embedded.IconToTextGap, 2);
             var uvFontScale = embedded.UvNumberFontScale < 0.5 ? 2.0 : embedded.UvNumberFontScale;
 
-            var padding = 4.0;
+            var basePadding = 4.0;
             var uvBarWidth = 12.0;
 
             // UV 数字
@@ -407,6 +407,7 @@ public partial class TaskbarEmbedWindow : Window
             var uvFt = new FormattedText(uvText, System.Globalization.CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight, typeface, uvFontSize, new SolidColorBrush(uvTextColor), dpi.PixelsPerDip);
 
+            var padding = Math.Max(basePadding, (uvFt.WidthIncludingTrailingWhitespace - uvBarWidth) / 2 - uvFt.OverhangLeading + 0.5);
             var uvTextHeight = uvFt.Height + 2;
             var uvBarHeight = Math.Max(2, heightDip - 8 - uvTextHeight);
             var uvBarX = padding;
@@ -429,7 +430,8 @@ public partial class TaskbarEmbedWindow : Window
                     3, 3);
             }
 
-            ctx.DrawText(uvFt, new Point(uvBarX + (uvBarWidth - uvFt.Width) / 2, uvBarY + uvBarHeight + 1));
+            var uvTextX = uvBarX + (uvBarWidth - uvFt.WidthIncludingTrailingWhitespace) / 2;
+            ctx.DrawText(uvFt, new Point(uvTextX, uvBarY + uvBarHeight + 1));
 
             // 天气图标
             var iconX = uvBarX + uvBarWidth + uvToIconGap;

@@ -219,12 +219,13 @@ public sealed class PanelViewModel : ObservableObject
                 return;
             }
 
+            _citySearchTimer.Stop();
+            _citySearchCts?.Cancel();
+
             _pendingCityResolved = new ResolvedLocation(value.Latitude, value.Longitude);
             _suppressCitySearch = true;
             City = value.DisplayName;
             _suppressCitySearch = false;
-
-            CitySuggestions.Clear();
         }
     }
 
@@ -1110,6 +1111,7 @@ public sealed class PanelViewModel : ObservableObject
 
         const double w = 200.0;
         const double h = 42.0;
+        var xStep = w / Math.Max(1, dayHours.Count);
         var tempPoints = new PointCollection(dayHours.Count);
         var humidityPoints = new PointCollection(dayHours.Count);
 
@@ -1246,7 +1248,7 @@ public sealed class PanelViewModel : ObservableObject
 
         for (var i = 0; i < dayHours.Count; i++)
         {
-            var x = dayHours.Count <= 1 ? 0 : i * (w / (dayHours.Count - 1));
+            var x = (i + 0.5) * xStep;
 
             var tempY = (paddedMaxTemp - filledTemps[i]) / rangeTemp * h;
             tempPoints.Add(new Point(x, tempY));
@@ -1289,37 +1291,37 @@ public sealed class PanelViewModel : ObservableObject
         }
 
         // 计算当前时间在图表上的位置
-        var currentTime = DateTimeOffset.Now;
+        var currentTime = DateTimeOffset.UtcNow.ToOffset(dayHours[0].Time.Offset);
         var selectedDate = SelectedForecastDay.Date;
         var isToday = selectedDate == DateOnly.FromDateTime(currentTime.DateTime);
-        ShowCurrentTimeLine = isToday && dayHours.Count > 1;
         CurrentTimeLineX = -1;
+        ShowCurrentTimeLine = false;
 
-        if (isToday && dayHours.Count > 1)
+        if (isToday && dayHours.Count > 0)
         {
-            // 计算当前时间对应的 X 位置
-            var currentHour = currentTime.Hour + currentTime.Minute / 60.0;
-            var firstHour = dayHours[0].Time.Hour;
-            var lastHour = dayHours[^1].Time.Hour;
-            if (lastHour < firstHour) lastHour += 24;
-            var hourSpan = lastHour - firstHour;
-            if (hourSpan > 0)
+            var first = dayHours[0].Time;
+            var last = dayHours[^1].Time;
+            var start = first - TimeSpan.FromMinutes(30);
+            var end = last + TimeSpan.FromMinutes(30);
+            var totalSeconds = (end - start).TotalSeconds;
+            if (totalSeconds > 0)
             {
-                var relativeHour = currentHour - firstHour;
-                if (relativeHour >= 0 && relativeHour <= hourSpan)
+                var pos = (currentTime - start).TotalSeconds / totalSeconds * w;
+                if (pos >= 0 && pos <= w)
                 {
-                    CurrentTimeLineX = relativeHour / hourSpan * w;
+                    CurrentTimeLineX = pos;
+                    ShowCurrentTimeLine = true;
                 }
             }
         }
 
-        // 生成24小时天气图标行（每3小时一个）
-        for (var i = 0; i < dayHours.Count; i += 3)
+        // 生成24小时天气图标行（每小时一个）
+        for (var i = 0; i < dayHours.Count; i++)
         {
             var hour = dayHours[i];
             var code = hour.WeatherCode ?? SelectedForecastDay.WeatherCode;
-            var x = dayHours.Count <= 1 ? 0 : i * (w / (dayHours.Count - 1));
-            var timeLabel = hour.Time.ToString("HH:mm");
+            var x = (i + 0.5) * xStep;
+            var timeLabel = hour.Time.ToString("HH");
             var tempLabel = hour.TemperatureC.HasValue ? $"{hour.TemperatureC.Value:0}°" : "—";
             var isCurrentHour = isToday && hour.Time.Hour == currentTime.Hour;
             TemperatureHourIcons.Add(new HourIcon(X: x, Y: 0, WeatherCode: code, TimeLabel: timeLabel, TempLabel: tempLabel, IsCurrentHour: isCurrentHour));
@@ -1327,25 +1329,25 @@ public sealed class PanelViewModel : ObservableObject
 
         // 添加最高最低点标记（调整位置更靠近曲线）
         ChartMarkers.Clear();
-        if (dayHours.Count > 1)
+        if (dayHours.Count > 0)
         {
             // 温度最高点（橙色）- 在曲线上方
-            var maxTempX = maxTempIndex * (w / (dayHours.Count - 1));
+            var maxTempX = (maxTempIndex + 0.5) * xStep;
             var maxTempY = (paddedMaxTemp - filledTemps[maxTempIndex]) / rangeTemp * h;
             ChartMarkers.Add(new ChartMarker(maxTempX, maxTempY - 1, $"{filledTemps[maxTempIndex]:0}°", "#FFFF8C00", true));
 
             // 温度最低点（橙色）- 在曲线下方
-            var minTempX = minTempIndex * (w / (dayHours.Count - 1));
+            var minTempX = (minTempIndex + 0.5) * xStep;
             var minTempY = (paddedMaxTemp - filledTemps[minTempIndex]) / rangeTemp * h;
             ChartMarkers.Add(new ChartMarker(minTempX, minTempY + 5, $"{filledTemps[minTempIndex]:0}°", "#FFFF8C00", false));
 
             // 湿度最高点（蓝色）- 在曲线上方
-            var maxHumidityX = maxHumidityIndex * (w / (dayHours.Count - 1));
+            var maxHumidityX = (maxHumidityIndex + 0.5) * xStep;
             var maxHumidityY = (paddedMaxHumidity - filledHumidities[maxHumidityIndex]) / rangeHumidity * h;
             ChartMarkers.Add(new ChartMarker(maxHumidityX, maxHumidityY - 1, $"{filledHumidities[maxHumidityIndex]:0}%", "#FF4382FF", true));
 
             // 湿度最低点（蓝色）- 在曲线下方
-            var minHumidityX = minHumidityIndex * (w / (dayHours.Count - 1));
+            var minHumidityX = (minHumidityIndex + 0.5) * xStep;
             var minHumidityY = (paddedMaxHumidity - filledHumidities[minHumidityIndex]) / rangeHumidity * h;
             ChartMarkers.Add(new ChartMarker(minHumidityX, minHumidityY + 5, $"{filledHumidities[minHumidityIndex]:0}%", "#FF4382FF", false));
         }

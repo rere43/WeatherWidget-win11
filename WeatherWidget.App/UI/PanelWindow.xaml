@@ -18,6 +18,7 @@
         UseLayoutRounding="True">
     <Window.Resources>
         <conv:WeatherCodeToChipIconConverter x:Key="WeatherIconConverter" />
+        <conv:ScaleCoordinateConverter x:Key="ScaleCoord" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
     </Window.Resources>
     <Grid>
@@ -402,12 +403,16 @@
                 </Grid>
 
                 <Grid Grid.Row="1" Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="220" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0">
+                    <StackPanel Grid.Row="0" Grid.Column="0">
                          <Border Padding="14" Background="{DynamicResource SoftPanelBrush}" CornerRadius="16">
                              <Grid>
                                 <Grid.ColumnDefinitions>
@@ -461,7 +466,7 @@
                                  Style="{StaticResource TinyButton}" Margin="0,10,0,0" HorizontalAlignment="Left" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="14,0,0,0">
                          <TextBlock Text="未来 5 天" Style="{StaticResource SectionTitleText}" />
                          <ItemsControl ItemsSource="{Binding ForecastDays}" Margin="0,10,0,0">
                              <ItemsControl.ItemsPanel>
@@ -509,143 +514,165 @@
                                      </Button>
                                  </DataTemplate>
                              </ItemsControl.ItemTemplate>
-                         </ItemsControl>
+                          </ItemsControl>
+                     </StackPanel>
 
-                         <Border Background="{DynamicResource SoftPanelBrush}"
-                                 CornerRadius="16"
-                                 Padding="12"
-                                 Margin="0,12,0,0"
-                                 Visibility="{Binding IsDayDetailVisible, Converter={StaticResource BoolToVis}}">
-                             <StackPanel>
-                                 <TextBlock Text="{Binding SelectedDayDetailTitle}" Style="{StaticResource SectionTitleText}" />
+                    <Border Grid.Row="1"
+                            Grid.Column="0"
+                            Grid.ColumnSpan="2"
+                            Background="{DynamicResource SoftPanelBrush}"
+                            CornerRadius="16"
+                            Padding="12"
+                            Margin="0,12,0,0"
+                            Visibility="{Binding IsDayDetailVisible, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding SelectedDayDetailTitle}" Style="{StaticResource SectionTitleText}" />
 
-                                 <!-- 图例 -->
-                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                     <Border Width="12" Height="3" Background="#FFFF8C00" CornerRadius="1" VerticalAlignment="Center" />
-                                     <TextBlock Text=" 温度" Style="{StaticResource SubtleText}" Margin="0,0,12,0" />
-                                     <Border Width="12" Height="3" Background="#FF4382FF" CornerRadius="1" VerticalAlignment="Center" />
-                                     <TextBlock Text=" 湿度" Style="{StaticResource SubtleText}" Margin="0,0,12,0" />
-                                     <Border Width="2" Height="12" Background="#FFFF5252" CornerRadius="1" VerticalAlignment="Center" />
-                                     <TextBlock Text=" 当前时间" Style="{StaticResource SubtleText}" />
-                                 </StackPanel>
+                            <!-- 图例 -->
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <Border Width="12" Height="3" Background="#FFFF8C00" CornerRadius="1" VerticalAlignment="Center" />
+                                <TextBlock Text=" 温度" Style="{StaticResource SubtleText}" Margin="0,0,12,0" />
+                                <Border Width="12" Height="3" Background="#FF4382FF" CornerRadius="1" VerticalAlignment="Center" />
+                                <TextBlock Text=" 湿度" Style="{StaticResource SubtleText}" Margin="0,0,12,0" />
+                                <Border Width="2" Height="12" Background="#FFFF5252" CornerRadius="1" VerticalAlignment="Center" />
+                                <TextBlock Text=" 当前时间" Style="{StaticResource SubtleText}" />
+                            </StackPanel>
 
-                                 <Viewbox Stretch="Fill" Height="160" Margin="0,10,0,0">
-                                     <Canvas Width="200" Height="62">
-                                         <!-- 温度曲线（橙色） -->
-                                         <Path Data="{Binding TemperatureChartGeometry}"
-                                               Stroke="#FFFF8C00"
-                                               StrokeThickness="1.0"
-                                               StrokeLineJoin="Round"
-                                               StrokeStartLineCap="Round"
-                                               StrokeEndLineCap="Round"
-                                               Canvas.Top="10" />
+                            <Grid Height="160" Margin="0,10,0,0">
+                                <Viewbox Stretch="Fill">
+                                    <Canvas Width="200" Height="62">
+                                        <!-- 温度曲线（橙色） -->
+                                        <Path Data="{Binding TemperatureChartGeometry}"
+                                              Stroke="#FFFF8C00"
+                                              StrokeThickness="1.0"
+                                              StrokeLineJoin="Round"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              Canvas.Top="10" />
 
-                                         <!-- 湿度曲线（蓝色） -->
-                                         <Path Data="{Binding HumidityChartGeometry}"
-                                               Stroke="#FF4382FF"
-                                               StrokeThickness="1.0"
-                                               StrokeLineJoin="Round"
-                                               StrokeStartLineCap="Round"
-                                               StrokeEndLineCap="Round"
-                                               Canvas.Top="10" />
+                                        <!-- 湿度曲线（蓝色） -->
+                                        <Path Data="{Binding HumidityChartGeometry}"
+                                              Stroke="#FF4382FF"
+                                              StrokeThickness="1.0"
+                                              StrokeLineJoin="Round"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              Canvas.Top="10" />
 
-                                         <!-- 当前时间线 -->
-                                         <Line X1="{Binding CurrentTimeLineX}" Y1="0"
-                                               X2="{Binding CurrentTimeLineX}" Y2="62"
-                                               Stroke="#FFFF5252"
-                                               StrokeThickness="0.6"
-                                               StrokeDashArray="2,1"
-                                               Visibility="{Binding ShowCurrentTimeLine, Converter={StaticResource BoolToVis}}" />
+                                        <!-- 当前时间线 -->
+                                        <Line X1="{Binding CurrentTimeLineX}" Y1="0"
+                                              X2="{Binding CurrentTimeLineX}" Y2="62"
+                                              Stroke="#FFFF5252"
+                                              StrokeThickness="0.6"
+                                              StrokeDashArray="2,1"
+                                              Visibility="{Binding ShowCurrentTimeLine, Converter={StaticResource BoolToVis}}" />
+                                    </Canvas>
+                                </Viewbox>
 
-                                         <!-- 最高最低点标记 -->
-                                         <ItemsControl ItemsSource="{Binding ChartMarkers}" Canvas.Top="10">
-                                             <ItemsControl.ItemsPanel>
-                                                 <ItemsPanelTemplate>
-                                                     <Canvas Width="200" Height="62" />
-                                                 </ItemsPanelTemplate>
-                                             </ItemsControl.ItemsPanel>
-                                             <ItemsControl.ItemContainerStyle>
-                                                 <Style TargetType="ContentPresenter">
-                                                     <Setter Property="Canvas.Left" Value="{Binding X}" />
-                                                     <Setter Property="Canvas.Top" Value="{Binding Y}" />
-                                                 </Style>
-                                             </ItemsControl.ItemContainerStyle>
-                                             <ItemsControl.ItemTemplate>
-                                                 <DataTemplate>
-                                                     <TextBlock Text="{Binding Label}"
-                                                                Foreground="{Binding Color}"
-                                                                FontSize="3.8"
-                                                                FontWeight="SemiBold">
-                                                         <TextBlock.RenderTransform>
-                                                             <!-- 水平居中并上调一个字号高度 -->
-                                                             <TranslateTransform X="-2.5" Y="-4.0" />
-                                                         </TextBlock.RenderTransform>
-                                                     </TextBlock>
-                                                 </DataTemplate>
-                                             </ItemsControl.ItemTemplate>
-                                         </ItemsControl>
-                                     </Canvas>
-                                 </Viewbox>
+                                <!-- 最高最低点标记：单独绘制，避免随 Viewbox 横向拉伸导致数字变形 -->
+                                <Canvas x:Name="DayDetailChartOverlay" IsHitTestVisible="False">
+                                    <ItemsControl ItemsSource="{Binding ChartMarkers}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="Canvas.Left">
+                                                    <Setter.Value>
+                                                        <MultiBinding Converter="{StaticResource ScaleCoord}" ConverterParameter="200">
+                                                            <Binding Path="X" />
+                                                            <Binding ElementName="DayDetailChartOverlay" Path="ActualWidth" />
+                                                        </MultiBinding>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter Property="Canvas.Top">
+                                                    <Setter.Value>
+                                                        <MultiBinding Converter="{StaticResource ScaleCoord}" ConverterParameter="62,10">
+                                                            <Binding Path="Y" />
+                                                            <Binding ElementName="DayDetailChartOverlay" Path="ActualHeight" />
+                                                        </MultiBinding>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Label}"
+                                                           Foreground="{Binding Color}"
+                                                           FontSize="10"
+                                                           FontWeight="SemiBold">
+                                                    <TextBlock.RenderTransform>
+                                                        <TranslateTransform X="-10" Y="-10" />
+                                                    </TextBlock.RenderTransform>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Canvas>
+                            </Grid>
 
-                                 <!-- 24小时天气图标行 -->
-                                 <ItemsControl ItemsSource="{Binding TemperatureHourIcons}" Margin="0,8,0,0">
-                                     <ItemsControl.ItemsPanel>
-                                         <ItemsPanelTemplate>
-                                             <UniformGrid Columns="8" />
-                                         </ItemsPanelTemplate>
-                                     </ItemsControl.ItemsPanel>
-                                     <ItemsControl.ItemTemplate>
-                                         <DataTemplate>
-                                             <Border Padding="2" CornerRadius="6" Margin="1">
-                                                 <Border.Style>
-                                                     <Style TargetType="Border">
-                                                         <Style.Triggers>
-                                                             <DataTrigger Binding="{Binding IsCurrentHour}" Value="True">
-                                                                 <Setter Property="Background" Value="#33FF5252" />
-                                                             </DataTrigger>
-                                                         </Style.Triggers>
-                                                     </Style>
-                                                 </Border.Style>
-                                                 <StackPanel HorizontalAlignment="Center">
-                                                     <TextBlock Text="{Binding TimeLabel}"
-                                                                FontSize="10"
-                                                                HorizontalAlignment="Center">
-                                                         <TextBlock.Style>
-                                                             <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleText}">
-                                                                 <Setter Property="FontSize" Value="10" />
-                                                                 <Style.Triggers>
-                                                                     <DataTrigger Binding="{Binding IsCurrentHour}" Value="True">
-                                                                         <Setter Property="Foreground" Value="#FFFF5252" />
-                                                                         <Setter Property="FontWeight" Value="Bold" />
-                                                                     </DataTrigger>
-                                                                 </Style.Triggers>
-                                                             </Style>
-                                                         </TextBlock.Style>
-                                                     </TextBlock>
-                                                     <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource IconChipBrush}"
-                                                             HorizontalAlignment="Center" Margin="0,3,0,0">
-                                                         <Image Source="{Binding WeatherCode, Converter={StaticResource WeatherIconConverter}}"
-                                                                Stretch="Uniform"
-                                                                Margin="3" />
-                                                     </Border>
-                                                     <TextBlock Text="{Binding TempLabel}"
-                                                                Style="{StaticResource ValueText}"
-                                                                FontSize="11"
-                                                                HorizontalAlignment="Center"
-                                                                Margin="0,2,0,0" />
-                                                 </StackPanel>
-                                             </Border>
-                                         </DataTemplate>
-                                     </ItemsControl.ItemTemplate>
-                                 </ItemsControl>
+                            <!-- 24小时天气图标行 -->
+                            <ItemsControl ItemsSource="{Binding TemperatureHourIcons}" Margin="0,8,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="{Binding TemperatureHourIcons.Count}" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="2" CornerRadius="6" Margin="1">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCurrentHour}" Value="True">
+                                                            <Setter Property="Background" Value="#33FF5252" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <TextBlock Text="{Binding TimeLabel}"
+                                                           FontSize="10"
+                                                           HorizontalAlignment="Center"
+                                                           TextWrapping="NoWrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource SubtleText}">
+                                                            <Setter Property="FontSize" Value="10" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsCurrentHour}" Value="True">
+                                                                    <Setter Property="Foreground" Value="#FFFF5252" />
+                                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource IconChipBrush}"
+                                                        HorizontalAlignment="Center" Margin="0,3,0,0">
+                                                    <Image Source="{Binding WeatherCode, Converter={StaticResource WeatherIconConverter}}"
+                                                           Stretch="Uniform"
+                                                           Margin="3" />
+                                                </Border>
+                                                <TextBlock Text="{Binding TempLabel}"
+                                                           Style="{StaticResource ValueText}"
+                                                           FontSize="11"
+                                                           HorizontalAlignment="Center"
+                                                           Margin="0,2,0,0"
+                                                           TextWrapping="NoWrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                                 <StackPanel Margin="0,8,0,0">
-                                     <TextBlock Text="{Binding SelectedDayTempSummary}" Foreground="#FFFF8C00" Style="{StaticResource SubtleText}" />
-                                     <TextBlock Text="{Binding SelectedDayHumiditySummary}" Foreground="#FF4382FF" Style="{StaticResource SubtleText}" Margin="0,2,0,0" />
-                                 </StackPanel>
-                             </StackPanel>
-                         </Border>
-                    </StackPanel>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="{Binding SelectedDayTempSummary}" Foreground="#FFFF8C00" Style="{StaticResource SubtleText}" />
+                                <TextBlock Text="{Binding SelectedDayHumiditySummary}" Foreground="#FF4382FF" Style="{StaticResource SubtleText}" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
                 <ProgressBar Grid.Row="2"
