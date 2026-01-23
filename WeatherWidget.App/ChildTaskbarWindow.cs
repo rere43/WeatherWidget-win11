@@ -102,6 +102,12 @@ public sealed class ChildTaskbarWindow : IDisposable
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT lpPoint);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
     {
@@ -139,6 +145,7 @@ public sealed class ChildTaskbarWindow : IDisposable
     }
 
     private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+    private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
 
     private const uint WS_POPUP = 0x80000000;
     private const uint WS_CHILD = 0x40000000;
@@ -164,6 +171,10 @@ public sealed class ChildTaskbarWindow : IDisposable
     private const uint WM_RBUTTONDOWN = 0x0204;
     private const uint WM_LBUTTONUP = 0x0202;
 
+    private const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
+    private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+
     #endregion
 
     private readonly PanelViewModel _panelViewModel;
@@ -172,13 +183,14 @@ public sealed class ChildTaskbarWindow : IDisposable
 
     private IntPtr _hwnd;
     private IntPtr _taskbarHwnd;
+    private IntPtr _notifyWndHwnd;
     private WndProcDelegate? _wndProc; // 防止 GC 回收
+    private WinEventDelegate? _winEventProc; // 防止 GC 回收
+    private IntPtr _hWinEventHook;
     private bool _disposed;
     private bool _isHovering;
     private bool _classRegistered;
 
-    private System.Threading.Timer? _updateTimer;
-    private System.Threading.Timer? _positionTimer;
     private System.Threading.Timer? _hoverTimer;
 
     private byte[]? _bitmapBuffer;
@@ -195,6 +207,19 @@ public sealed class ChildTaskbarWindow : IDisposable
         _onHoverChanged = onHoverChanged;
 
         _msgTaskbarCreated = RegisterWindowMessage("TaskbarCreated");
+        _panelViewModel.WeatherUpdated += OnWeatherUpdated;
+    }
+
+    private void OnWeatherUpdated(object? sender, EventArgs e)
+    {
+        Application.Current?.Dispatcher?.BeginInvoke(() =>
+        {
+            if (_hwnd != IntPtr.Zero)
+            {
+                AdjustPosition();
+                Invalidate();
+            }
+        });
     }
 
     public bool TryCreate()
@@ -250,10 +275,22 @@ public sealed class ChildTaskbarWindow : IDisposable
             // 3. SetParent 挂载到任务栏
             SetParent(_hwnd, _taskbarHwnd);
 
-            // 启动定时器
-            _positionTimer ??= new System.Threading.Timer(_ => Application.Current?.Dispatcher?.BeginInvoke(() => AdjustPosition()), null, 500, 1000); // 1秒检查一次位置即可
-            _updateTimer ??= new System.Threading.Timer(_ => Application.Current?.Dispatcher?.BeginInvoke(() => Invalidate()), null, 0, 5000);
+            // 设置 Hook 监听任务栏位置变化
+            _winEventProc = new WinEventDelegate(WinEventProc);
+            _hWinEventHook = SetWinEventHook(
+                EVENT_OBJECT_LOCATIONCHANGE,
+                EVENT_OBJECT_LOCATIONCHANGE,
+                IntPtr.Zero,
+                _winEventProc,
+                0, 0,
+                WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+
+            // 启动定时器 (仅保留悬停检测)
             _hoverTimer ??= new System.Threading.Timer(_ => Application.Current?.Dispatcher?.BeginInvoke(CheckHover), null, 500, 100);
+
+            // 初始布局与渲染
+            AdjustPosition();
+            Invalidate();
 
             return true;
         }
@@ -261,6 +298,18 @@ public sealed class ChildTaskbarWindow : IDisposable
         {
             AppLogger.Info($"[ERROR] ChildTaskbarWindow create failed: {ex.Message}");
             return false;
+        }
+    }
+
+    private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+    {
+        if (eventType == EVENT_OBJECT_LOCATIONCHANGE)
+        {
+            // 检查是否是任务栏或通知区在移动
+            if (hwnd == _taskbarHwnd || hwnd == _notifyWndHwnd || _notifyWndHwnd == IntPtr.Zero)
+            {
+                Application.Current?.Dispatcher?.BeginInvoke(() => AdjustPosition());
+            }
         }
     }
 
@@ -284,11 +333,11 @@ public sealed class ChildTaskbarWindow : IDisposable
         UpdateDesiredLayout(rc);
 
         // 计算位置：从通知区左侧开始
-        var tray = FindWindowEx(_taskbarHwnd, IntPtr.Zero, "TrayNotifyWnd", null);
+        _notifyWndHwnd = FindWindowEx(_taskbarHwnd, IntPtr.Zero, "TrayNotifyWnd", null);
 
         // 将通知区屏幕坐标转换为任务栏客户区坐标
         int notifyX;
-        if (tray != IntPtr.Zero && GetWindowRect(tray, out var rr))
+        if (_notifyWndHwnd != IntPtr.Zero && GetWindowRect(_notifyWndHwnd, out var rr))
         {
             var pt = new POINT { x = rr.Left, y = rr.Top };
             // ScreenToClient(taskbarHwnd, ref pt) 手动计算
@@ -501,8 +550,12 @@ public sealed class ChildTaskbarWindow : IDisposable
     public void Dispose()
     {
         _disposed = true;
-        _updateTimer?.Dispose();
-        _positionTimer?.Dispose();
+        _panelViewModel.WeatherUpdated -= OnWeatherUpdated;
+        if (_hWinEventHook != IntPtr.Zero)
+        {
+            UnhookWinEvent(_hWinEventHook);
+            _hWinEventHook = IntPtr.Zero;
+        }
         _hoverTimer?.Dispose();
         if (_hwnd != IntPtr.Zero) DestroyWindow(_hwnd);
     }
