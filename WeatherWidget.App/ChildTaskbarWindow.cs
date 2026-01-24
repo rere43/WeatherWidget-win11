@@ -103,6 +103,9 @@ public sealed class ChildTaskbarWindow : IDisposable
     private static extern bool GetCursorPos(out POINT lpPoint);
 
     [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
     private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
 
     [DllImport("user32.dll")]
@@ -275,14 +278,15 @@ public sealed class ChildTaskbarWindow : IDisposable
             // 3. SetParent 挂载到任务栏
             SetParent(_hwnd, _taskbarHwnd);
 
-            // 设置 Hook 监听任务栏位置变化
+            // 设置 Hook 监听任务栏位置变化 (限制在任务栏进程以减少开销)
+            GetWindowThreadProcessId(_taskbarHwnd, out var pid);
             _winEventProc = new WinEventDelegate(WinEventProc);
             _hWinEventHook = SetWinEventHook(
                 EVENT_OBJECT_LOCATIONCHANGE,
                 EVENT_OBJECT_LOCATIONCHANGE,
                 IntPtr.Zero,
                 _winEventProc,
-                0, 0,
+                pid, 0,
                 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
             // 启动定时器 (仅保留悬停检测)
@@ -418,6 +422,13 @@ public sealed class ChildTaskbarWindow : IDisposable
     private void Invalidate()
     {
         if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd) || _disposed) return;
+
+        // 声明句柄以便 finally 访问
+        IntPtr hdcS = IntPtr.Zero;
+        IntPtr hdcM = IntPtr.Zero;
+        IntPtr hBmp = IntPtr.Zero;
+        IntPtr oldBmp = IntPtr.Zero;
+
         try
         {
             var snp = _panelViewModel.Snapshot; if (snp == null) return;
@@ -429,19 +440,35 @@ public sealed class ChildTaskbarWindow : IDisposable
             bmp.CopyPixels(_bitmapBuffer, s, 0);
 
             var bi = new BITMAPINFO { bmiHeader = new BITMAPINFOHEADER { biSize = 40, biWidth = w, biHeight = -h, biPlanes = 1, biBitCount = 32 } };
-            IntPtr hdcS = GetDC(IntPtr.Zero), hdcM = CreateCompatibleDC(hdcS), hBmp = CreateDIBSection(hdcM, ref bi, 0, out var bits, IntPtr.Zero, 0);
+
+            hdcS = GetDC(IntPtr.Zero);
+            if (hdcS == IntPtr.Zero) return;
+
+            hdcM = CreateCompatibleDC(hdcS);
+            if (hdcM == IntPtr.Zero) return;
+
+            hBmp = CreateDIBSection(hdcM, ref bi, 0, out var bits, IntPtr.Zero, 0);
+            if (hBmp == IntPtr.Zero) return;
+
             Marshal.Copy(_bitmapBuffer, 0, bits, _bitmapBuffer.Length);
-            IntPtr old = SelectObject(hdcM, hBmp);
+
+            oldBmp = SelectObject(hdcM, hBmp);
+
             POINT pd = new POINT { x = _lastX, y = _lastY }, ps = new POINT { x = 0, y = 0 }; SIZE sz = new SIZE { cx = w, cy = h };
             BLENDFUNCTION bl = new BLENDFUNCTION { BlendOp = 0, SourceConstantAlpha = 255, AlphaFormat = 1 };
 
             // 重要：子窗口使用 UpdateLayeredWindow 需要特殊的 flags 或者父窗口支持
             // 但根据实验结果，这种方式是可行的
             UpdateLayeredWindow(_hwnd, hdcS, ref pd, ref sz, hdcM, ref ps, 0, ref bl, 2); // ULW_ALPHA
-
-            SelectObject(hdcM, old); DeleteObject(hBmp); DeleteDC(hdcM); ReleaseDC(IntPtr.Zero, hdcS);
         }
         catch { }
+        finally
+        {
+            if (oldBmp != IntPtr.Zero) SelectObject(hdcM, oldBmp);
+            if (hBmp != IntPtr.Zero) DeleteObject(hBmp);
+            if (hdcM != IntPtr.Zero) DeleteDC(hdcM);
+            if (hdcS != IntPtr.Zero) ReleaseDC(IntPtr.Zero, hdcS);
+        }
     }
 
     private ImageSource RenderContent(WeatherNow now, Settings settings)
