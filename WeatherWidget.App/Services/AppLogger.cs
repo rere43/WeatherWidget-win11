@@ -20,7 +20,19 @@ public static class AppLogger
         }
     }
 
-    public static void Info(string message)
+    public static void Info(string message) => Log("INFO", message);
+
+    public static void Error(string message, Exception? ex = null)
+    {
+        var fullMessage = message;
+        if (ex != null)
+        {
+            fullMessage += $"{Environment.NewLine}{ex}";
+        }
+        Log("ERROR", fullMessage);
+    }
+
+    private static void Log(string level, string message)
     {
         try
         {
@@ -29,7 +41,7 @@ public static class AppLogger
                 return;
             }
 
-            var line = $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}";
+            var line = $"{DateTimeOffset.Now:O} [{level}] {message}{Environment.NewLine}";
             lock (Gate)
             {
                 File.AppendAllText(_path, line);

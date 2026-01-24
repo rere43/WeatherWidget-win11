@@ -734,17 +734,41 @@
                                               Canvas.Top="10" />
 
                                         <!-- 当前时间线 -->
-                                        <Line X1="{Binding CurrentTimeLineX}" Y1="0"
+                                        <Line X1="{Binding CurrentTimeLineX}" Y1="5"
                                               X2="{Binding CurrentTimeLineX}" Y2="62"
                                               Stroke="#FFFF5252"
                                               StrokeThickness="0.6"
                                               StrokeDashArray="2,1"
                                               Visibility="{Binding ShowCurrentTimeLine, Converter={StaticResource BoolToVis}}" />
+
                                     </Canvas>
                                 </Viewbox>
 
                                 <!-- 最高最低点标记：单独绘制，避免随 Viewbox 横向拉伸导致数字变形 -->
                                 <Canvas x:Name="DayDetailChartOverlay" IsHitTestVisible="False">
+                                    <!-- 当前时刻数值 -->
+                                    <TextBlock Visibility="{Binding ShowCurrentTimeLine, Converter={StaticResource BoolToVis}}"
+                                               FontSize="10"
+                                               FontWeight="SemiBold">
+                                        <TextBlock.RenderTransform>
+                                            <TranslateTransform X="-22" Y="-13" />
+                                        </TextBlock.RenderTransform>
+                                        <Canvas.Left>
+                                            <MultiBinding Converter="{StaticResource ScaleCoord}" ConverterParameter="200">
+                                                <Binding Path="CurrentTimeLineX" />
+                                                <Binding ElementName="DayDetailChartOverlay" Path="ActualWidth" />
+                                            </MultiBinding>
+                                        </Canvas.Left>
+                                        <Canvas.Top>
+                                            <MultiBinding Converter="{StaticResource ScaleCoord}" ConverterParameter="62">
+                                                <Binding Path="CurrentTimeMarkerY" />
+                                                <Binding ElementName="DayDetailChartOverlay" Path="ActualHeight" />
+                                            </MultiBinding>
+                                        </Canvas.Top>
+                                        <Run Text="{Binding CurrentTimeTempText, Mode=OneWay}" Foreground="#FFFF8C00" />
+                                        <Run Text=" " />
+                                        <Run Text="{Binding CurrentTimeHumidityText, Mode=OneWay}" Foreground="#FF4382FF" />
+                                    </TextBlock>
                                     <ItemsControl ItemsSource="{Binding ChartMarkers}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>

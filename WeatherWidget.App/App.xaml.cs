@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -105,6 +106,16 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // 启用现代 TLS 协议支持
+        try
+        {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
+        }
+        catch
+        {
+            // 忽略旧系统可能不支持 Tls13 的情况
+        }
 
         // 命令行参数：--experiment 启动嵌入方案实验窗口
         if (e.Args.Contains("--experiment", StringComparer.OrdinalIgnoreCase))

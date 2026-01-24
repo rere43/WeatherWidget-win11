@@ -30,7 +30,7 @@ public sealed class ForecastDayViewModel
         get
         {
             var dt = Date.ToDateTime(TimeOnly.MinValue);
-            return dt.DayOfWeek switch
+            var dayStr = dt.DayOfWeek switch
             {
                 DayOfWeek.Monday => "周一",
                 DayOfWeek.Tuesday => "周二",
@@ -41,6 +41,7 @@ public sealed class ForecastDayViewModel
                 DayOfWeek.Sunday => "周日",
                 _ => dt.DayOfWeek.ToString(),
             };
+            return $"{dt:MM-dd} {dayStr}";
         }
     }
 }

@@ -65,6 +65,8 @@ public sealed class PanelViewModel : ObservableObject
     private bool _isDayDetailVisible;
     private Geometry _temperatureChartGeometry = Geometry.Empty;
     private Geometry _humidityChartGeometry = Geometry.Empty;
+    private string _currentTimeTempText = "";
+    private string _currentTimeHumidityText = "";
     private string _selectedDayTempSummary = "—";
     private string _selectedDayHumiditySummary = "—";
     private bool _isSettingsPanelVisible;
@@ -930,6 +932,20 @@ public sealed class PanelViewModel : ObservableObject
         private set => SetProperty(ref _selectedDayHumiditySummary, value);
     }
 
+    public string CurrentTimeTempText
+    {
+        get => _currentTimeTempText;
+        private set => SetProperty(ref _currentTimeTempText, value);
+    }
+
+    public string CurrentTimeHumidityText
+    {
+        get => _currentTimeHumidityText;
+        private set => SetProperty(ref _currentTimeHumidityText, value);
+    }
+
+    public double CurrentTimeMarkerY => 5;
+
     public string TaskbarDescription
     {
         get
@@ -1026,6 +1042,7 @@ public sealed class PanelViewModel : ObservableObject
         catch (Exception ex)
         {
             SetStatus($"更新失败：{ex.Message}");
+            AppLogger.Error("RefreshAsync failed", ex);
         }
         finally
         {
@@ -1443,6 +1460,8 @@ public sealed class PanelViewModel : ObservableObject
         var isToday = selectedDate == DateOnly.FromDateTime(currentTime.DateTime);
         CurrentTimeLineX = -1;
         ShowCurrentTimeLine = false;
+        CurrentTimeTempText = "";
+        CurrentTimeHumidityText = "";
 
         if (isToday && dayHours.Count > 0)
         {
@@ -1458,6 +1477,15 @@ public sealed class PanelViewModel : ObservableObject
                 {
                     CurrentTimeLineX = pos;
                     ShowCurrentTimeLine = true;
+
+                    // 计算当前时刻的温湿度数值
+                    if (Snapshot != null)
+                    {
+                        var curTemp = Snapshot.Now.TemperatureC;
+                        var curHumidity = Snapshot.Now.RelativeHumidityPercent ?? 50;
+                        CurrentTimeTempText = $"{curTemp:0}°";
+                        CurrentTimeHumidityText = $"{curHumidity:0}%";
+                    }
                 }
             }
         }

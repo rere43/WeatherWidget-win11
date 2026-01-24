@@ -50,7 +50,30 @@ public sealed class SettingsStore
     {
         settings = Normalize(settings);
         var json = JsonSerializer.Serialize(settings, JsonOptions);
-        File.WriteAllText(_path, json);
+
+        // 原子化写入：先写入临时文件，再重命名/移动
+        var tempPath = _path + ".tmp";
+        try
+        {
+            File.WriteAllText(tempPath, json);
+            if (File.Exists(_path))
+            {
+                File.Replace(tempPath, _path, _path + ".bak", true);
+            }
+            else
+            {
+                File.Move(tempPath, _path);
+            }
+        }
+        catch
+        {
+            // 如果 Replace 失败，回退到普通覆盖
+            File.WriteAllText(_path, json);
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
     }
 
     private static Settings LoadFromJson(string json)

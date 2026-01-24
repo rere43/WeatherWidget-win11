@@ -389,7 +389,6 @@ public sealed class DllTaskbarEmbed : IDisposable
 
             var ft1 = new FormattedText(tempText, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, fontSize, new SolidColorBrush(tempColor), 1.0);
             var ft2 = new FormattedText(humidityText, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, humidityFontSize, new SolidColorBrush(humidityColor), 1.0);
-
             var totalTextHeight = ft1.Height + lineSpacing + ft2.Height;
             var textStartY = (_height - totalTextHeight) / 2.0;
 

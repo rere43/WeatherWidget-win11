@@ -195,6 +195,7 @@ public sealed class ChildTaskbarWindow : IDisposable
     private bool _classRegistered;
 
     private System.Threading.Timer? _hoverTimer;
+    private System.Threading.Timer? _positionDebounceTimer;
 
     private byte[]? _bitmapBuffer;
     private int _width = 150, _height = 40;
@@ -258,7 +259,7 @@ public sealed class ChildTaskbarWindow : IDisposable
             // 策略 F-SetParent:
             // 1. 创建 Popup 窗口
             _hwnd = CreateWindowExW(
-                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
+                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_TRANSPARENT,
                 className,
                 "WeatherWidget",
                 WS_POPUP | WS_VISIBLE, // 初始为 Popup
@@ -289,6 +290,12 @@ public sealed class ChildTaskbarWindow : IDisposable
                 pid, 0,
                 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
+            // 初始化位置防抖定时器
+            _positionDebounceTimer = new System.Threading.Timer(_ =>
+            {
+                Application.Current?.Dispatcher?.BeginInvoke(() => AdjustPosition());
+            }, null, Timeout.Infinite, Timeout.Infinite);
+
             // 启动定时器 (仅保留悬停检测)
             _hoverTimer ??= new System.Threading.Timer(_ => Application.Current?.Dispatcher?.BeginInvoke(CheckHover), null, 500, 100);
 
@@ -309,10 +316,11 @@ public sealed class ChildTaskbarWindow : IDisposable
     {
         if (eventType == EVENT_OBJECT_LOCATIONCHANGE)
         {
+            if (_disposed) return;
             // 检查是否是任务栏或通知区在移动
             if (hwnd == _taskbarHwnd || hwnd == _notifyWndHwnd || _notifyWndHwnd == IntPtr.Zero)
             {
-                Application.Current?.Dispatcher?.BeginInvoke(() => AdjustPosition());
+                _positionDebounceTimer?.Change(50, Timeout.Infinite);
             }
         }
     }
@@ -380,13 +388,9 @@ public sealed class ChildTaskbarWindow : IDisposable
             });
         }
 
-        // 依然处理鼠标点击（如果 HTTRANSPARENT 没生效或需要交互）
-        // 但通常嵌入模式只需显示，交互靠悬停
-
         return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 
-    // 复用之前的渲染逻辑
     private void UpdateDesiredLayout(RECT taskbarClientRect)
     {
         var snapshot = _panelViewModel.Snapshot; if (snapshot is null) { _width = 100; return; }
@@ -406,7 +410,7 @@ public sealed class ChildTaskbarWindow : IDisposable
         var padding = Math.Max(basePadding, (uvFt.WidthIncludingTrailingWhitespace - uvBarWidth) / 2 - uvFt.OverhangLeading + 0.5);
         var baseIconSize = taskbarClientRect.Height - 8;
         var iconSize = (int)(baseIconSize * embedded.IconScale);
-        iconSize = Math.Clamp(iconSize, 16, taskbarClientRect.Height - 4);
+        iconSize = (int)Math.Clamp(iconSize, 16, taskbarClientRect.Height - 4);
 
         var baseFontSize = Math.Min((taskbarClientRect.Height - 8) / 2.0 * 0.9, 14);
         var tempSize = baseFontSize * embedded.TemperatureFontScale;
@@ -423,12 +427,7 @@ public sealed class ChildTaskbarWindow : IDisposable
     {
         if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd) || _disposed) return;
 
-        // 声明句柄以便 finally 访问
-        IntPtr hdcS = IntPtr.Zero;
-        IntPtr hdcM = IntPtr.Zero;
-        IntPtr hBmp = IntPtr.Zero;
-        IntPtr oldBmp = IntPtr.Zero;
-
+        IntPtr hdcS = IntPtr.Zero, hdcM = IntPtr.Zero, hBmp = IntPtr.Zero, oldBmp = IntPtr.Zero;
         try
         {
             var snp = _panelViewModel.Snapshot; if (snp == null) return;
@@ -440,26 +439,15 @@ public sealed class ChildTaskbarWindow : IDisposable
             bmp.CopyPixels(_bitmapBuffer, s, 0);
 
             var bi = new BITMAPINFO { bmiHeader = new BITMAPINFOHEADER { biSize = 40, biWidth = w, biHeight = -h, biPlanes = 1, biBitCount = 32 } };
-
             hdcS = GetDC(IntPtr.Zero);
-            if (hdcS == IntPtr.Zero) return;
-
             hdcM = CreateCompatibleDC(hdcS);
-            if (hdcM == IntPtr.Zero) return;
-
             hBmp = CreateDIBSection(hdcM, ref bi, 0, out var bits, IntPtr.Zero, 0);
-            if (hBmp == IntPtr.Zero) return;
-
             Marshal.Copy(_bitmapBuffer, 0, bits, _bitmapBuffer.Length);
-
             oldBmp = SelectObject(hdcM, hBmp);
 
             POINT pd = new POINT { x = _lastX, y = _lastY }, ps = new POINT { x = 0, y = 0 }; SIZE sz = new SIZE { cx = w, cy = h };
             BLENDFUNCTION bl = new BLENDFUNCTION { BlendOp = 0, SourceConstantAlpha = 255, AlphaFormat = 1 };
-
-            // 重要：子窗口使用 UpdateLayeredWindow 需要特殊的 flags 或者父窗口支持
-            // 但根据实验结果，这种方式是可行的
-            UpdateLayeredWindow(_hwnd, hdcS, ref pd, ref sz, hdcM, ref ps, 0, ref bl, 2); // ULW_ALPHA
+            UpdateLayeredWindow(_hwnd, hdcS, ref pd, ref sz, hdcM, ref ps, 0, ref bl, 2);
         }
         catch { }
         finally
@@ -473,8 +461,6 @@ public sealed class ChildTaskbarWindow : IDisposable
 
     private ImageSource RenderContent(WeatherNow now, Settings settings)
     {
-        // 渲染逻辑保持一致，直接调用 NativeTaskbarWindow 中的逻辑副本
-        // 这里简化展示，实际代码与 NativeTaskbarWindow.RenderContent 相同
         var visual = new DrawingVisual();
         using (var ctx = visual.RenderOpen())
         {
@@ -514,7 +500,7 @@ public sealed class ChildTaskbarWindow : IDisposable
             var iconX = uvBarX + uvBarWidth + uvToIconGap;
             var baseIconSize = _height - 8;
             var iconSize = (int)(baseIconSize * embedded.IconScale);
-            iconSize = Math.Clamp(iconSize, 16, _height - 4);
+            iconSize = (int)Math.Clamp(iconSize, 16, _height - 4);
             var icon = _iconRenderer.RenderWeatherIcon(now, embedded, iconSize);
             ctx.DrawImage(icon, new Rect(iconX, (_height - iconSize) / 2.0, iconSize, iconSize));
 
@@ -535,6 +521,7 @@ public sealed class ChildTaskbarWindow : IDisposable
             DrawTextWithStroke(ctx, tempText, textX, textStartY, fontSize, tf, textColor, embedded.TextStrokeWidth);
             DrawTextWithStroke(ctx, humidityText, textX, textStartY + ft1.Height + lineSpacing, humidityFontSize, tf, humidityColor, embedded.TextStrokeWidth);
         }
+
         var bmp = new RenderTargetBitmap(_width, _height, 96, 96, PixelFormats.Pbgra32);
         bmp.Render(visual); return bmp;
     }
@@ -559,7 +546,6 @@ public sealed class ChildTaskbarWindow : IDisposable
         try
         {
             if (!GetCursorPos(out var pt)) return;
-            // 转换为屏幕坐标判定
             if (!GetWindowRect(_hwnd, out var rect)) return;
             var isInside = pt.x >= rect.Left && pt.x <= rect.Right && pt.y >= rect.Top && pt.y <= rect.Bottom;
             if (isInside != _isHovering)
@@ -584,6 +570,7 @@ public sealed class ChildTaskbarWindow : IDisposable
             _hWinEventHook = IntPtr.Zero;
         }
         _hoverTimer?.Dispose();
+        _positionDebounceTimer?.Dispose();
         if (_hwnd != IntPtr.Zero) DestroyWindow(_hwnd);
     }
 }
