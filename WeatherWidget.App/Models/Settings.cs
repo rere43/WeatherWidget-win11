@@ -1,5 +1,15 @@
 namespace WeatherWidget.App.Models;
 
+/// <summary>
+/// 自定义地点（用户保存的经纬度位置）
+/// </summary>
+public sealed record CustomLocation
+{
+    public string Name { get; init; } = "";
+    public double Latitude { get; init; }
+    public double Longitude { get; init; }
+}
+
 public enum ThemeMode
 {
     Auto = 0,       // 根据日出日落自动切换
@@ -88,6 +98,10 @@ public sealed record Settings
     public string City { get; init; } = "Shanghai";
     public double Latitude { get; init; } = 31.2304;
     public double Longitude { get; init; } = 121.4737;
+    public bool UseCustomCoordinates { get; init; } = false;
+
+    // 自定义地点列表
+    public IReadOnlyList<CustomLocation> CustomLocations { get; init; } = Array.Empty<CustomLocation>();
 
     // 刷新间隔
     public TimeSpan RefreshInterval { get; init; } = TimeSpan.FromMinutes(10);

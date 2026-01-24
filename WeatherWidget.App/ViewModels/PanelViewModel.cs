@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using WeatherWidget.App.Models;
@@ -69,6 +70,10 @@ public sealed class PanelViewModel : ObservableObject
     private bool _isSettingsPanelVisible;
     private bool _isHoverPinProgressVisible;
     private double _hoverPinProgressPercent;
+    private bool _isCitySearching;
+    private bool _isCityDropdownOpen;
+    private int _citySearchDotCount;
+    private readonly DispatcherTimer _citySearchDotTimer;
 
     public event EventHandler? WeatherUpdated;
 
@@ -103,8 +108,20 @@ public sealed class PanelViewModel : ObservableObject
         ToggleDayDetailCommand = new RelayCommand<ForecastDayViewModel>(ToggleDayDetail);
         ToggleSettingsPanelCommand = new RelayCommand(ToggleSettingsPanel);
         ToggleLogPanelCommand = new RelayCommand(ToggleLogPanel);
+        AddCustomLocationCommand = new RelayCommand(AddCustomLocation);
+        RemoveCustomLocationCommand = new RelayCommand<CustomLocation>(RemoveCustomLocation);
+        SelectCustomLocationCommand = new RelayCommand<CustomLocation>(SelectCustomLocation);
 
         _city = Settings.City;
+        _displayLatitude = Settings.Latitude;
+        _displayLongitude = Settings.Longitude;
+
+        // 加载自定义地点
+        foreach (var loc in Settings.CustomLocations ?? Array.Empty<CustomLocation>())
+        {
+            CustomLocations.Add(loc);
+        }
+
         _refreshMinutes = Math.Max(1, (int)Math.Round(Settings.RefreshInterval.TotalMinutes));
         _themeMode = Settings.ThemeMode;
         var embedded = Settings.Embedded ?? AppSettings.Default.Embedded;
@@ -147,6 +164,16 @@ public sealed class PanelViewModel : ObservableObject
         {
             _citySearchTimer.Stop();
             _ = UpdateCitySuggestionsAsync();
+        };
+
+        _citySearchDotTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(400),
+        };
+        _citySearchDotTimer.Tick += (_, __) =>
+        {
+            _citySearchDotCount = (_citySearchDotCount % 3) + 1;
+            RaisePropertyChanged(nameof(CitySearchStatusText));
         };
 
         _timer = new DispatcherTimer
@@ -204,6 +231,35 @@ public sealed class PanelViewModel : ObservableObject
         set => SetProperty(ref _hoverPinProgressPercent, value);
     }
 
+    public bool IsCitySearching
+    {
+        get => _isCitySearching;
+        private set
+        {
+            if (SetProperty(ref _isCitySearching, value))
+            {
+                if (value)
+                {
+                    _citySearchDotCount = 1;
+                    _citySearchDotTimer.Start();
+                }
+                else
+                {
+                    _citySearchDotTimer.Stop();
+                }
+                RaisePropertyChanged(nameof(CitySearchStatusText));
+            }
+        }
+    }
+
+    public bool IsCityDropdownOpen
+    {
+        get => _isCityDropdownOpen;
+        set => SetProperty(ref _isCityDropdownOpen, value);
+    }
+
+    public string CitySearchStatusText => IsCitySearching ? "查询中" + new string('.', _citySearchDotCount) : string.Empty;
+
     public GeoSuggestion? SelectedCitySuggestion
     {
         get => _selectedCitySuggestion;
@@ -226,6 +282,10 @@ public sealed class PanelViewModel : ObservableObject
             _suppressCitySearch = true;
             City = value.DisplayName;
             _suppressCitySearch = false;
+
+            // 更新坐标显示
+            DisplayLatitude = value.Latitude;
+            DisplayLongitude = value.Longitude;
         }
     }
 
@@ -252,6 +312,87 @@ public sealed class PanelViewModel : ObservableObject
 
             ScheduleCitySearch();
         }
+    }
+
+    // 坐标相关属性
+    private double _displayLatitude;
+    private double _displayLongitude;
+    private string _customLocationName = "";
+
+    public double DisplayLatitude
+    {
+        get => _displayLatitude;
+        set => SetProperty(ref _displayLatitude, value);
+    }
+
+    public double DisplayLongitude
+    {
+        get => _displayLongitude;
+        set => SetProperty(ref _displayLongitude, value);
+    }
+
+    public string CustomLocationName
+    {
+        get => _customLocationName;
+        set => SetProperty(ref _customLocationName, value);
+    }
+
+    // 自定义地点列表
+    public ObservableCollection<CustomLocation> CustomLocations { get; } = new();
+
+    public ICommand AddCustomLocationCommand { get; }
+    public ICommand RemoveCustomLocationCommand { get; }
+    public ICommand SelectCustomLocationCommand { get; }
+
+    private void AddCustomLocation()
+    {
+        var name = CustomLocationName?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = $"自定义 ({DisplayLatitude:F2}, {DisplayLongitude:F2})";
+        }
+
+        var loc = new CustomLocation
+        {
+            Name = name,
+            Latitude = DisplayLatitude,
+            Longitude = DisplayLongitude
+        };
+
+        CustomLocations.Add(loc);
+        SaveCustomLocations();
+        CustomLocationName = "";
+    }
+
+    private void RemoveCustomLocation(CustomLocation? loc)
+    {
+        if (loc is not null && CustomLocations.Remove(loc))
+        {
+            SaveCustomLocations();
+        }
+    }
+
+    private void SelectCustomLocation(CustomLocation? loc)
+    {
+        if (loc is null) return;
+
+        _suppressCitySearch = true;
+        City = loc.Name;
+        _suppressCitySearch = false;
+
+        DisplayLatitude = loc.Latitude;
+        DisplayLongitude = loc.Longitude;
+        _pendingCityResolved = new ResolvedLocation(loc.Latitude, loc.Longitude);
+        IsCityDropdownOpen = false;
+    }
+
+    private void SaveCustomLocations()
+    {
+        Settings = Settings with
+        {
+            CustomLocations = CustomLocations.ToList()
+        };
+        _settingsStore.Save(Settings);
     }
 
     private EmbeddedWidgetSettings CurrentEmbeddedSettings =>
@@ -932,6 +1073,8 @@ public sealed class PanelViewModel : ObservableObject
             Settings = Settings with
             {
                 City = newCity,
+                Latitude = DisplayLatitude,
+                Longitude = DisplayLongitude,
                 RefreshInterval = refresh,
                 AutoStart = AutoStart,
                 StartHidden = StartHidden,
@@ -967,6 +1110,10 @@ public sealed class PanelViewModel : ObservableObject
                 StartHidden = StartHidden,
                 ThemeMode = ThemeMode,
             };
+
+            // 更新坐标显示
+            DisplayLatitude = resolved.Latitude;
+            DisplayLongitude = resolved.Longitude;
 
             _settingsStore.Save(Settings);
             SetStatus("设置已保存，正在刷新…");
@@ -1383,9 +1530,11 @@ public sealed class PanelViewModel : ObservableObject
         if (q.Length < 1)
         {
             CitySuggestions.Clear();
+            IsCitySearching = false;
             return;
         }
 
+        IsCitySearching = true;
         _citySearchTimer.Stop();
         _citySearchTimer.Start();
     }
@@ -1396,6 +1545,7 @@ public sealed class PanelViewModel : ObservableObject
         if (q.Length < 1)
         {
             CitySuggestions.Clear();
+            IsCitySearching = false;
             return;
         }
 
@@ -1420,6 +1570,10 @@ public sealed class PanelViewModel : ObservableObject
         catch
         {
             // 搜索失败不打断用户输入
+        }
+        finally
+        {
+            IsCitySearching = false;
         }
     }
 

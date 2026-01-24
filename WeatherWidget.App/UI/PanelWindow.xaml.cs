@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using WeatherWidget.App.ViewModels;
 
@@ -22,8 +23,24 @@ public partial class PanelWindow : Window
     {
         InitializeComponent();
         PreviewKeyDown += OnPreviewKeyDown;
+        PreviewMouseDown += OnPreviewMouseDown;
         DataContextChanged += OnDataContextChanged;
         Deactivated += OnDeactivated;
+    }
+
+    private void OnPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // 点击窗口其他区域时关闭城市下拉
+        if (DataContext is PanelViewModel vm && vm.IsCityDropdownOpen)
+        {
+            // 检查点击是否在 TextBox 或 Popup 内
+            var hitTextBox = CityTextBox.IsMouseOver;
+            var hitPopup = CitySuggestionPopup.IsMouseOver;
+            if (!hitTextBox && !hitPopup)
+            {
+                vm.IsCityDropdownOpen = false;
+            }
+        }
     }
 
     private void OnDeactivated(object? sender, EventArgs e)
@@ -32,6 +49,12 @@ public partial class PanelWindow : Window
         if (!AutoHideOnDeactivated)
         {
             return;
+        }
+
+        // 关闭下拉
+        if (DataContext is PanelViewModel vm)
+        {
+            vm.IsCityDropdownOpen = false;
         }
 
         Hide();
@@ -189,5 +212,70 @@ public partial class PanelWindow : Window
 
         Left = Math.Clamp(Left, minLeft, maxLeft);
         Top = Math.Clamp(Top, minTop, maxTop);
+    }
+
+    private void CityTextBox_GotFocus(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is PanelViewModel vm)
+        {
+            vm.IsCityDropdownOpen = true;
+        }
+    }
+
+    private void CityTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // 延迟关闭，检查焦点是否转移到 Popup 内
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+        {
+            if (DataContext is PanelViewModel vm)
+            {
+                // 如果焦点仍在输入框或 Popup 内，不关闭
+                if (CityTextBox.IsKeyboardFocusWithin || CitySuggestionPopup.IsKeyboardFocusWithin)
+                {
+                    return;
+                }
+                // 如果鼠标在 Popup 上，也不关闭（用户可能正在点击）
+                if (CitySuggestionPopup.IsMouseOver)
+                {
+                    return;
+                }
+                vm.IsCityDropdownOpen = false;
+            }
+        });
+    }
+
+    private void CitySuggestionItem_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListBoxItem item && item.DataContext is Services.GeoSuggestion suggestion)
+        {
+            if (DataContext is PanelViewModel vm)
+            {
+                vm.SelectedCitySuggestion = suggestion;
+                vm.IsCityDropdownOpen = false;
+            }
+        }
+    }
+
+    private void CitySuggestionBorder_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border border && border.DataContext is Services.GeoSuggestion suggestion)
+        {
+            if (DataContext is PanelViewModel vm)
+            {
+                vm.SelectedCitySuggestion = suggestion;
+                vm.IsCityDropdownOpen = false;
+            }
+        }
+    }
+
+    private void CustomLocationItem_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border border && border.DataContext is Models.CustomLocation loc)
+        {
+            if (DataContext is PanelViewModel vm)
+            {
+                vm.SelectCustomLocationCommand.Execute(loc);
+            }
+        }
     }
 }

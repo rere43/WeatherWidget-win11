@@ -19,6 +19,7 @@
     <Window.Resources>
         <conv:WeatherCodeToChipIconConverter x:Key="WeatherIconConverter" />
         <conv:ScaleCoordinateConverter x:Key="ScaleCoord" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
     </Window.Resources>
     <Grid>
@@ -65,6 +66,9 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -72,13 +76,183 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="城市" Style="{StaticResource SubtleText}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Row="0" Grid.Column="1" IsEditable="True" IsTextSearchEnabled="False"
-                                                  Text="{Binding City, UpdateSourceTrigger=PropertyChanged}"
-                                                  ItemsSource="{Binding CitySuggestions}" SelectedItem="{Binding SelectedCitySuggestion}"
-                                                  DisplayMemberPath="DisplayName" Margin="6,0,0,0" />
+                                        <Grid Grid.Row="0" Grid.Column="1" Margin="6,0,0,0">
+                                            <TextBox x:Name="CityTextBox"
+                                                     Text="{Binding City, UpdateSourceTrigger=PropertyChanged}"
+                                                     GotFocus="CityTextBox_GotFocus"
+                                                     LostFocus="CityTextBox_LostFocus" />
+                                            <Popup x:Name="CitySuggestionPopup"
+                                                   PlacementTarget="{Binding ElementName=CityTextBox}"
+                                                   Placement="Bottom"
+                                                   IsOpen="{Binding IsCityDropdownOpen, Mode=TwoWay}"
+                                                   StaysOpen="True"
+                                                   AllowsTransparency="True"
+                                                   PopupAnimation="Fade">
+                                                <Border Background="{DynamicResource CardBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource CardBorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="4"
+                                                        MinWidth="{Binding ActualWidth, ElementName=CityTextBox}"
+                                                        MaxHeight="280">
+                                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                        <StackPanel>
+                                                            <!-- 查询中提示 -->
+                                                            <TextBlock Text="{Binding CitySearchStatusText}"
+                                                                       Style="{StaticResource SubtleText}"
+                                                                       Margin="8,6"
+                                                                       Visibility="{Binding IsCitySearching, Converter={StaticResource BoolToVis}}" />
+
+                                                            <!-- 自定义地点列表 (总是显示，有特殊标识) -->
+                                                            <ItemsControl x:Name="CustomLocationsControl" ItemsSource="{Binding CustomLocations}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Background="Transparent"
+                                                                                Padding="8,6"
+                                                                                Cursor="Hand"
+                                                                                MouseLeftButtonDown="CustomLocationItem_Click">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Style.Triggers>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+                                                                                        </Trigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <StackPanel Orientation="Horizontal">
+                                                                                <Border Background="{DynamicResource AccentBrush}"
+                                                                                        CornerRadius="3"
+                                                                                        Padding="4,1"
+                                                                                        Margin="0,0,6,0"
+                                                                                        VerticalAlignment="Center">
+                                                                                    <TextBlock Text="★"
+                                                                                               FontSize="9"
+                                                                                               Foreground="{DynamicResource CardBackgroundBrush}" />
+                                                                                </Border>
+                                                                                <TextBlock Text="{Binding Name}"
+                                                                                           Foreground="{DynamicResource InkBrush}"
+                                                                                           VerticalAlignment="Center" />
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+
+                                                            <!-- 分隔线 (有自定义地点时显示) -->
+                                                            <Border Height="1"
+                                                                    Background="{DynamicResource CardBorderBrush}"
+                                                                    Margin="8,4"
+                                                                    Visibility="{Binding HasItems, ElementName=CustomLocationsControl, Converter={StaticResource BoolToVis}}" />
+
+                                                            <!-- 搜索结果列表 -->
+                                                            <ItemsControl ItemsSource="{Binding CitySuggestions}"
+                                                                          Visibility="{Binding IsCitySearching, Converter={StaticResource InverseBoolToVis}}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Background="Transparent"
+                                                                                Padding="8,6"
+                                                                                Cursor="Hand"
+                                                                                MouseLeftButtonDown="CitySuggestionBorder_Click">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Style.Triggers>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+                                                                                        </Trigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                                       Foreground="{DynamicResource InkBrush}" />
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </ScrollViewer>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
                                         <Button Grid.Row="0" Grid.Column="2" Content="保存" Command="{Binding SaveSettingsCommand}" Style="{StaticResource TinyButton}" Margin="6,0,0,0" />
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="频率" Style="{StaticResource SubtleText}" VerticalAlignment="Center" Margin="0,8,0,0" />
-                                        <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" SelectedValue="{Binding RefreshMinutes}" SelectedValuePath="Tag" Margin="6,8,0,0">
+
+                                        <!-- 自定义地点设置 -->
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="地名" Style="{StaticResource SubtleText}" VerticalAlignment="Center" Margin="0,8,0,0" />
+                                        <Grid Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="6,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0"
+                                                     Text="{Binding CustomLocationName, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="自定义地点名称"
+                                                     Foreground="{DynamicResource InkBrush}" />
+                                            <Button Grid.Column="1" Content="添加"
+                                                    Command="{Binding AddCustomLocationCommand}"
+                                                    Style="{StaticResource TinyButton}"
+                                                    Margin="6,0,0,0"
+                                                    ToolTip="添加当前坐标为自定义地点" />
+                                        </Grid>
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="坐标" Style="{StaticResource SubtleText}" VerticalAlignment="Center" Margin="0,8,0,0" />
+                                        <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="6,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0"
+                                                     Text="{Binding DisplayLatitude, StringFormat=F4, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="纬度"
+                                                     Foreground="{DynamicResource InkBrush}" />
+                                            <TextBox Grid.Column="2"
+                                                     Text="{Binding DisplayLongitude, StringFormat=F4, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="经度"
+                                                     Foreground="{DynamicResource InkBrush}" />
+                                        </Grid>
+
+                                        <!-- 已保存的自定义地点 -->
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="已存" Style="{StaticResource SubtleText}" VerticalAlignment="Top" Margin="0,8,0,0" />
+                                        <ItemsControl Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
+                                                      ItemsSource="{Binding CustomLocations}"
+                                                      Margin="6,8,0,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{DynamicResource SoftPanelBrush}"
+                                                            CornerRadius="4"
+                                                            Padding="6,3"
+                                                            Margin="0,0,0,4">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0"
+                                                                       Foreground="{DynamicResource InkBrush}"
+                                                                       VerticalAlignment="Center">
+                                                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                                                <Run Text=" (" Foreground="{DynamicResource SubtleInkBrush}" FontSize="10" />
+                                                                <Run Text="{Binding Latitude, Mode=OneWay, StringFormat=F2}" Foreground="{DynamicResource SubtleInkBrush}" FontSize="10" />
+                                                                <Run Text=", " Foreground="{DynamicResource SubtleInkBrush}" FontSize="10" />
+                                                                <Run Text="{Binding Longitude, Mode=OneWay, StringFormat=F2}" Foreground="{DynamicResource SubtleInkBrush}" FontSize="10" />
+                                                                <Run Text=")" Foreground="{DynamicResource SubtleInkBrush}" FontSize="10" />
+                                                            </TextBlock>
+                                                            <Button Grid.Column="1"
+                                                                    Content="×"
+                                                                    Command="{Binding DataContext.RemoveCustomLocationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource TinyButton}"
+                                                                    FontSize="12"
+                                                                    Padding="4,0"
+                                                                    ToolTip="删除" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="频率" Style="{StaticResource SubtleText}" VerticalAlignment="Center" Margin="0,8,0,0" />
+                                        <ComboBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" SelectedValue="{Binding RefreshMinutes}" SelectedValuePath="Tag" Margin="6,8,0,0">
                                             <ComboBoxItem Content="5分钟" Tag="5" />
                                             <ComboBoxItem Content="10分钟" Tag="10" />
                                             <ComboBoxItem Content="30分钟" Tag="30" />
