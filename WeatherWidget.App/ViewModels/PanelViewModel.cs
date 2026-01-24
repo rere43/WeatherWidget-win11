@@ -946,6 +946,13 @@ public sealed class PanelViewModel : ObservableObject
 
     public double CurrentTimeMarkerY => 5;
 
+    private string _temperatureTrend = "";
+    public string TemperatureTrend
+    {
+        get => _temperatureTrend;
+        private set => SetProperty(ref _temperatureTrend, value);
+    }
+
     public string TaskbarDescription
     {
         get
@@ -968,6 +975,7 @@ public sealed class PanelViewModel : ObservableObject
         if (cached is not null)
         {
             ApplySnapshot(cached);
+            UpdateTemperatureTrend(cached);
             SetStatus("已加载缓存");
         }
 
@@ -1036,6 +1044,7 @@ public sealed class PanelViewModel : ObservableObject
                 cancellationToken: cts.Token);
 
             ApplySnapshot(snapshot);
+            UpdateTemperatureTrend(snapshot);
             SetStatus("更新成功");
             WeatherUpdated?.Invoke(this, EventArgs.Empty);
         }
@@ -1078,6 +1087,35 @@ public sealed class PanelViewModel : ObservableObject
 
             SelectedForecastDay = found;
         }
+    }
+
+    private void UpdateTemperatureTrend(WeatherSnapshot snapshot)
+    {
+        if (snapshot.Days.Count < 2)
+        {
+            TemperatureTrend = "";
+            return;
+        }
+
+        var todayMax = snapshot.Days[0].TemperatureMaxC;
+        var tomorrowMax = snapshot.Days[1].TemperatureMaxC;
+        var diffTomorrow = tomorrowMax - todayMax;
+
+        if (diffTomorrow <= -4) { TemperatureTrend = " · 剧烈降温"; return; }
+        if (diffTomorrow >= 4) { TemperatureTrend = " · 大幅回暖"; return; }
+        if (diffTomorrow <= -1.5) { TemperatureTrend = " · 降温中"; return; }
+        if (diffTomorrow >= 1.5) { TemperatureTrend = " · 回暖中"; return; }
+
+        // 如果明天变化不明显，看后续几天
+        if (snapshot.Days.Count >= 3)
+        {
+            var day3Max = snapshot.Days[2].TemperatureMaxC;
+            var diffLater = day3Max - todayMax;
+            if (diffLater <= -3) { TemperatureTrend = " · 持续降温"; return; }
+            if (diffLater >= 3) { TemperatureTrend = " · 持续升温"; return; }
+        }
+
+        TemperatureTrend = "";
     }
 
     private async Task SaveSettingsAsync()

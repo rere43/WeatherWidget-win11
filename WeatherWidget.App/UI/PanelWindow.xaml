@@ -641,7 +641,10 @@
                     </StackPanel>
 
                     <StackPanel Grid.Row="0" Grid.Column="1" Margin="14,0,0,0">
-                         <TextBlock Text="未来 5 天" Style="{StaticResource SectionTitleText}" />
+                         <StackPanel Orientation="Horizontal">
+                             <TextBlock Text="未来 5 天" Style="{StaticResource SectionTitleText}" />
+                             <TextBlock Text="{Binding TemperatureTrend}" Style="{StaticResource SubtleText}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                         </StackPanel>
                          <ItemsControl ItemsSource="{Binding ForecastDays}" Margin="0,10,0,0">
                              <ItemsControl.ItemsPanel>
                                  <ItemsPanelTemplate>
