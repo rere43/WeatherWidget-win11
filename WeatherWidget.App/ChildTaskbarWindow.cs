@@ -111,12 +111,33 @@ public sealed class ChildTaskbarWindow : IDisposable
     [DllImport("user32.dll")]
     private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
     {
         public int Left, Top, Right, Bottom;
         public int Width => Right - Left;
         public int Height => Bottom - Top;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -201,8 +222,11 @@ public sealed class ChildTaskbarWindow : IDisposable
     private int _width = 150, _height = 40;
     private int _lastX = int.MinValue, _lastY = int.MinValue;
     private uint _msgTaskbarCreated;
+    private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+    private const int FullscreenTolerancePx = 2;
 
     public IntPtr Handle => _hwnd;
+    public bool IsFullscreen => IsTaskbarHidden() || IsFullscreenAppRunning();
 
     public ChildTaskbarWindow(PanelViewModel panelViewModel, IconRenderer iconRenderer, Action<bool>? onHoverChanged = null)
     {
@@ -540,11 +564,57 @@ public sealed class ChildTaskbarWindow : IDisposable
     private static string ApplyTemplate(string t, string v, string f) => (string.IsNullOrWhiteSpace(t) ? f : t).Replace("{value}", v, StringComparison.OrdinalIgnoreCase);
     private static Color ParseColor(string hex, Color defaultColor) { try { return string.IsNullOrWhiteSpace(hex) ? defaultColor : (Color)ColorConverter.ConvertFromString(hex); } catch { return defaultColor; } }
 
+    private bool IsTaskbarHidden() => _taskbarHwnd != IntPtr.Zero && IsWindow(_taskbarHwnd) && !IsWindowVisible(_taskbarHwnd);
+
+    private bool IsFullscreenAppRunning()
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero || foreground == _hwnd || foreground == _taskbarHwnd || foreground == _notifyWndHwnd)
+        {
+            return false;
+        }
+
+        var className = new StringBuilder(256);
+        _ = GetClassName(foreground, className, className.Capacity);
+        var windowClass = className.ToString();
+        if (windowClass is "Progman" or "WorkerW" or "Shell_TrayWnd" or "TrayNotifyWnd")
+        {
+            return false;
+        }
+
+        var monitor = MonitorFromWindow(foreground, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var monitorInfo = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref monitorInfo) || !GetWindowRect(foreground, out var windowRect))
+        {
+            return false;
+        }
+
+        return windowRect.Left <= monitorInfo.rcMonitor.Left + FullscreenTolerancePx &&
+               windowRect.Top <= monitorInfo.rcMonitor.Top + FullscreenTolerancePx &&
+               windowRect.Right >= monitorInfo.rcMonitor.Right - FullscreenTolerancePx &&
+               windowRect.Bottom >= monitorInfo.rcMonitor.Bottom - FullscreenTolerancePx;
+    }
+
     private void CheckHover()
     {
         if (_hwnd == IntPtr.Zero || _disposed) return;
         try
         {
+            if (IsFullscreen)
+            {
+                if (_isHovering)
+                {
+                    _isHovering = false;
+                    _onHoverChanged?.Invoke(false);
+                }
+                return;
+            }
+
             if (!GetCursorPos(out var pt)) return;
             if (!GetWindowRect(_hwnd, out var rect)) return;
             var isInside = pt.x >= rect.Left && pt.x <= rect.Right && pt.y >= rect.Top && pt.y <= rect.Bottom;

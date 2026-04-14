@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace WeatherWidget.App.Services;
 
 /// <summary>
-/// 全局鼠标钩子：用于检测“点击面板外部”并自动隐藏面板。
+/// 全局鼠标钩子：用于检测"点击面板外部"并自动隐藏面板。
 /// </summary>
 public sealed class GlobalMouseHook : IDisposable
 {
@@ -16,7 +16,19 @@ public sealed class GlobalMouseHook : IDisposable
     private IntPtr _hookHandle;
     private HookProc? _hookProc;
 
-    public event EventHandler<(int X, int Y)>? MouseDown;
+    /// <summary>鼠标按钮类型。</summary>
+    public enum MouseButton
+    {
+        Left,
+        Right,
+        Middle,
+        XButton
+    }
+
+    /// <summary>鼠标按下事件参数。</summary>
+    public readonly record struct MouseDownEventArgs(int X, int Y, MouseButton Button);
+
+    public event EventHandler<MouseDownEventArgs>? MouseDown;
 
     public bool IsRunning => _hookHandle != IntPtr.Zero;
 
@@ -60,10 +72,19 @@ public sealed class GlobalMouseHook : IDisposable
             if (nCode >= 0)
             {
                 var msg = wParam.ToInt32();
-                if (msg is WM_LBUTTONDOWN or WM_RBUTTONDOWN or WM_MBUTTONDOWN or WM_XBUTTONDOWN)
+                MouseButton? button = msg switch
+                {
+                    WM_LBUTTONDOWN => MouseButton.Left,
+                    WM_RBUTTONDOWN => MouseButton.Right,
+                    WM_MBUTTONDOWN => MouseButton.Middle,
+                    WM_XBUTTONDOWN => MouseButton.XButton,
+                    _ => null
+                };
+
+                if (button.HasValue)
                 {
                     var info = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
-                    MouseDown?.Invoke(this, (info.pt.X, info.pt.Y));
+                    MouseDown?.Invoke(this, new MouseDownEventArgs(info.pt.X, info.pt.Y, button.Value));
                 }
             }
         }

@@ -300,13 +300,18 @@ public partial class App : Application
         }
 
         // 点击面板外部时自动隐藏（解决悬停触发后未激活导致 Deactivated 不触发的问题）
-        _globalMouseHook.MouseDown += (_, pt) =>
+        _globalMouseHook.MouseDown += (_, e) =>
         {
-            // 1) 嵌入模式：单击触发区域切换/固定面板（不拦截系统点击，只做观察）
-            if (_embeddedTriggerHwnd != IntPtr.Zero &&
-                GetWindowRect(_embeddedTriggerHwnd, out var triggerRc))
+            // 1) 嵌入模式：仅左键单击触发区域切换/固定面板（不拦截系统点击，只做观察）
+            var isEmbeddedFullscreen = _childTaskbarWindow?.IsFullscreen ?? false;
+            RECT triggerRc = default;
+
+            if (e.Button == GlobalMouseHook.MouseButton.Left &&
+                !isEmbeddedFullscreen &&
+                _embeddedTriggerHwnd != IntPtr.Zero &&
+                GetWindowRect(_embeddedTriggerHwnd, out triggerRc))
             {
-                var isInTrigger = pt.X >= triggerRc.Left && pt.X <= triggerRc.Right && pt.Y >= triggerRc.Top && pt.Y <= triggerRc.Bottom;
+                var isInTrigger = e.X >= triggerRc.Left && e.X <= triggerRc.Right && e.Y >= triggerRc.Top && e.Y <= triggerRc.Bottom;
                 if (isInTrigger)
                 {
                     panelWindow.Dispatcher.BeginInvoke(() =>
@@ -338,7 +343,7 @@ public partial class App : Application
                 }
             }
 
-            // 2) 点击面板外部自动隐藏（所有打开方式）
+            // 2) 点击面板外部自动隐藏（所有打开方式，所有按钮）
             if (!panelWindow.IsVisible)
             {
                 return;
@@ -350,7 +355,7 @@ public partial class App : Application
                 return;
             }
 
-            var isInside = pt.X >= rc.Left && pt.X <= rc.Right && pt.Y >= rc.Top && pt.Y <= rc.Bottom;
+            var isInside = e.X >= rc.Left && e.X <= rc.Right && e.Y >= rc.Top && e.Y <= rc.Bottom;
             if (isInside)
             {
                 return;
